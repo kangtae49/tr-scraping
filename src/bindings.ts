@@ -52,11 +52,16 @@ async runStep(stepName: string) : Promise<Result<null, ApiError>> {
 
 /** user-defined types **/
 
-export type ApiError = { CrawlerError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string }
+export type ApiError = { CrawlerError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string } | { GlobError: string }
 export type Edge = { a: string; b: string }
+export type IterList = { name: string; val: string[] }
+export type IterPattern = { name: string; file_pattern: string; content_pattern: string }
+export type IterRange = { name: string; offset: string; take: string }
+export type IterRangePattern = { name: string; file_pattern: string; offset: string; take: string }
 export type Request = { url: string; method: string; header: Partial<{ [key in string]: string }>; filename: string }
 export type Setting = { env: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }>; edges: Edge[] }
-export type Step = { name: string; input: Partial<{ [key in string]: string }>; req: Request; output: string; concurrency_limit: number }
+export type Step = { name: string; task_iters: TaskIter[]; req: Request; output: string; concurrency_limit: number }
+export type TaskIter = { Range: IterRange } | { Pattern: IterPattern } | { RangePattern: IterRangePattern } | { Vec: IterList }
 export type TextContent = { path: string; mimetype: string; enc?: string | null; text?: string | null }
 
 /** tauri-specta globals **/

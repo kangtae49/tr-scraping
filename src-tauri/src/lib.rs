@@ -78,6 +78,7 @@ async fn read_txt(state: State<'_, Arc<RwLock<Crawler>>>, path_str: &str) -> Res
 #[tauri::command]
 #[specta::specta]
 async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
+    println!("run_step: {}", step_name);
     let mut crawler = state.write().await;
     crawler.run_step(String::from(step_name)).await?;
     Ok(())

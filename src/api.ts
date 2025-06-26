@@ -13,5 +13,6 @@ export const loadCrawler = async (setting: Setting): Promise<void> => {
 }
 
 export const runStep = async (stepName: string): Promise<void> => {
+  console.log('invoke run_step:', stepName)
   return await invoke("run_step", {stepName})
 }

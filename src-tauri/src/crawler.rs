@@ -4,7 +4,7 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use encoding_rs::Encoding;
 use chardetng::EncodingDetector;
 use reqwest::{Client, RequestBuilder};
-use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task};
+use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::{sync::Semaphore};
@@ -15,8 +15,12 @@ use std::path::{absolute, Path, PathBuf};
 use std::str::FromStr;
 use mime_guess::from_path;
 use tokio::io::AsyncReadExt;
+use glob::glob;
+use serde_json::Value;
 
 type Result<T> = std::result::Result<T, ApiError>;
+
+
 type Shared<T> = Arc<RwLock<T>>;
 
 pub struct Crawler {
@@ -119,6 +123,7 @@ impl Crawler  {
     }
     
     pub async fn load(&mut self, setting: Setting) -> Result<()> {
+        println!("setting: {:?}", setting);
         let mut step_handles = HashMap::<String, StepHandle>::new();
         for (_nm, step) in setting.steps.iter() {
             // let (tx, rx) = mpsc::channel::<Request>(1000);
@@ -164,16 +169,20 @@ impl Crawler  {
     }
 
     pub async fn run_step(&mut self, step_name: String) -> Result<()> {
+        println!("crawler run_step: {}", &step_name);
         let steps_arc = Arc::clone(&self.steps);
         let steps = steps_arc.read().await;
         let env_arc = Arc::clone(&self.env);
 
         let step = steps.get(&step_name).ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let req = step.req.clone();
-        
-        let range = match &step.input.get(&"RANGE".to_string()) {
-            Some(s) => { s.parse()? },
-            None => { 1 }
+        let env_lock = env_arc.read().await;
+        let mut env = env_lock.clone();
+
+        let (first_name, iter_first) = if step.task_iters.len() > 0  {
+            get_iter(&step.task_iters[0], &env)?
+        } else {
+            ("KEY1".to_string(), vec!["0".to_string()])
         };
 
         let step_handles_arc = self.step_handles.clone();
@@ -182,74 +191,173 @@ impl Crawler  {
         let semaphore = step_handle.semaphore.clone();
         let paused = step_handle.paused.clone();
         paused.store(false, Ordering::SeqCst);
-        
+
         let mut handles = Vec::new();
-        for idx in 0..range {
-            if paused.load(Ordering::SeqCst) {
-                println!("paused");
-                return Ok(());
-            }
-            
-            {
-                let mut env = env_arc.write().await;
-                env.extend(HashMap::from([
-                    ("IDX".to_string(), format!("{}", idx)),
-                    ("NO".to_string(), format!("{}", idx + 1))]));
-            }
-            let env = env_arc.read().await;
 
-            let client = self.client.clone();
-            
-            let url = get_handlebars(&req.url, &env)?;
-            
-            let method = req.method.clone();
+        for first_val in iter_first {
+            println!("{:?}", first_val);
+            env.insert(first_name.clone(), first_val.clone());
 
-            let mut header = HeaderMap::new();
-            for (k, v) in req.header.iter() {
-                // let nm = HeaderName::from_str(k.to_lowercase().as_str())?;
-                let nm = HeaderName::from_str(k.as_str())?;
-                let new_v = get_handlebars(v, &env)?;
-                let val = HeaderValue::from_str(&new_v)?;
-                header.insert(nm, val);
-            }
-
-            let folder = get_handlebars(&step.output, &env)?;
-            std::fs::create_dir_all(Path::new(&folder))?;
-            let filename = get_handlebars(&req.filename, &env)?;
-            let p: PathBuf = Path::new(&folder).join(filename);
-            let save_path= p.to_string_lossy().to_string();
-
-            let task = Task {
-                client,
-                url,
-                method,
-                header,
-                save_path,
+            let (second_name, iter_second) = if step.task_iters.len() > 1  {
+                get_iter(&step.task_iters[1], &env)?
+            } else {
+                ("KEY2".to_string(), vec!["0".to_string()])
             };
-            
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
-            let handle = tokio::task::spawn(async move {
-                if let Err(e) = run_task(task).await {
-                    eprintln!("Error: {:?}", e);
-                }
-                drop(permit);
-            });
-            handles.push(handle);
-        }
 
+            for second_val in iter_second {
+                env.insert(second_name.clone(), second_val.clone());
+
+                if paused.load(Ordering::SeqCst) {
+                    println!("paused");
+                    return Ok(());
+                }
+
+                let client = self.client.clone();
+
+                let url = get_handlebars(&req.url, &env)?;
+
+                let method = req.method.clone();
+
+                let mut header = HeaderMap::new();
+                for (k, v) in req.header.iter() {
+                    // let nm = HeaderName::from_str(k.to_lowercase().as_str())?;
+                    let nm = HeaderName::from_str(k.as_str())?;
+                    let new_v = get_handlebars(v, &env)?;
+                    let val = HeaderValue::from_str(&new_v)?;
+                    header.insert(nm, val);
+                }
+                println!("task 3");
+                let folder = get_handlebars(&step.output, &env)?;
+                std::fs::create_dir_all(Path::new(&folder))?;
+                let filename = get_handlebars(&req.filename, &env)?;
+                let p: PathBuf = Path::new(&folder).join(filename);
+                let save_path= p.to_string_lossy().to_string();
+
+                let task = Task {
+                    client,
+                    url,
+                    method,
+                    header,
+                    save_path,
+                };
+
+                println!("task before");
+                let _permit = semaphore.clone().acquire_owned().await.unwrap();
+                let handle = tokio::task::spawn(async move {
+                    if let Err(e) = run_task(task).await {
+                        eprintln!("Error: {:?}", e);
+                    }
+                });
+
+                println!("push handle");
+                handles.push(handle);                
+                
+            }
+        }
+        println!("end task1");
         for handle in handles {
             handle.await.unwrap();
         }
-
+        println!("end task2");
         Ok(())
     }
 
+}
+fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<(String, Vec<String>)> {
+    let (name, list) = match task_iter {
+        TaskIter::Vec(iter_vec) => {
+            (iter_vec.name.clone(), get_iter_vec(iter_vec)?)
+        }
+        TaskIter::Range(iter_range) => {
+            (iter_range.name.clone(), get_iter_range(iter_range, env)?)
+        }
+        TaskIter::Pattern(iter_pattern) => {
+            (iter_pattern.name.clone(), get_iter_pattern(iter_pattern)?)
+        }
+        TaskIter::RangePattern(iter_range_pattern) => {
+            (iter_range_pattern.name.clone(), get_iter_range_pattern(iter_range_pattern, env)?)
+        }
+    };
+    Ok((name, list))
+}
+
+fn get_iter_range(iter_range: &IterRange, env: &HashMap<String, String>) -> Result<Vec<String>> {
+    let offset_str = get_handlebars(&iter_range.offset, env)?;
+    let take_str = get_handlebars(&iter_range.take, env)?;
+    let offset: usize = offset_str.parse()?;
+    let take: usize = take_str.parse()?;
+    let start = offset;
+    let end = offset + take;
+    Ok((start..end).map(|idx| idx.to_string()).collect())
+}
+
+fn get_iter_range_pattern(iter_range_pattern: &IterRangePattern, env: &HashMap<String, String>) -> Result<Vec<String>> {
+    let file_pattern = iter_range_pattern.file_pattern.clone();
+    let file_path = get_handlebars(&file_pattern, env)?;
+    let mut offset_str = get_handlebars(&iter_range_pattern.offset, env)?;
+    let mut take_str = get_handlebars(&iter_range_pattern.take, env)?;
+
+    if let Ok(json_str) = std::fs::read_to_string(Path::new(&file_path)) {
+        if let Ok(json) = serde_json::from_str(&json_str) {
+            match get_json_val(&json, &offset_str) {
+                Some(val) => {offset_str = val;}
+                None => {}
+            }
+            match get_json_val(&json, &take_str) {
+                Some(val) => {take_str = val;}
+                None => {}
+            }
+        }
+    }
+    let offset: usize = offset_str.parse()?;
+    let take: usize = take_str.parse()?;
+    let start = offset;
+    let end = offset + take;
+    Ok((start..end).map(|idx| idx.to_string()).collect())
+}
+
+fn get_json_val(json: &Value, path: &str) -> Option<String> {
+    if let Ok(values) = jsonpath_lib::select(json, path) {
+        match values.first() {
+            Some(v) => {
+                Some(v.to_string())
+            }
+            None => None
+        }
+    } else {
+        None
+    }    
+}
+
+fn get_iter_pattern(iter_pattern: &IterPattern) -> Result<Vec<String>> {
+    let file_pattern = iter_pattern.file_pattern.clone();
+    let content_pattern = iter_pattern.content_pattern.clone();
+    let paths = glob(&file_pattern)?;
+    let mut ret = vec![];
+    for entry in paths {
+        if let Ok(p) = entry {
+            if let Ok(json_str) = std::fs::read_to_string(p) {
+                if let Ok(json) = serde_json::from_str(&json_str) {
+                    if let Ok(values) = jsonpath_lib::select(&json, &content_pattern) {
+                        for val in values {
+                            ret.push(val.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(ret)
+}
+
+fn get_iter_vec(iter_vec: &IterList) -> Result<Vec<String>> {
+    Ok(iter_vec.val.clone())
 }
 
 async fn run_task(task: Task) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
-    
+
     let mut req_builder: RequestBuilder;
     if task.method == "POST" {
         req_builder = task.client.post(&task.url);

@@ -9,7 +9,46 @@ use specta::Type;
 use tokio::sync::{Notify, Semaphore};
 use thiserror::Error;
 
-#[derive(Type, Serialize, Deserialize, Clone)]
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub enum TaskIter {
+    Range(IterRange),
+    Pattern(IterPattern),
+    RangePattern(IterRangePattern),
+    Vec(IterList)
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct IterRange {
+    pub name: String,
+    pub offset: String,
+    pub take: String,
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct IterPattern {
+    pub name: String,
+    pub file_pattern: String,
+    pub content_pattern: String,
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct IterRangePattern {
+    pub name: String,
+    pub file_pattern: String,
+    pub offset: String,
+    pub take: String,
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct IterList {
+    pub name: String,
+    pub val: Vec<String>,
+}
+
+
+
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
     pub url: String,
     pub method: String,
@@ -17,12 +56,10 @@ pub struct Request {
     pub filename: String
 }
 
-#[skip_serializing_none]
-#[serde_as]
-#[derive(Type, Serialize, Deserialize, Clone)]
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct Step {
     pub name: String,
-    pub input: HashMap<String, String>,
+    pub task_iters: Vec<TaskIter>,
     pub req: Request,
     pub output: String,
     pub concurrency_limit: usize,
@@ -38,7 +75,7 @@ pub struct Task {
 }
 
 #[serde_as]
-#[derive(Type, Serialize, Deserialize, Clone)]
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct Setting {
     pub env: HashMap<String, String>,
     pub steps: HashMap<String, Step>,
@@ -94,6 +131,9 @@ pub enum ApiError {
     #[error("JSON error: {0}")]
     JsonError(String),
 
+    #[error("Glob error: {0}")]
+    GlobError(String),
+
 }
 
 impl From<handlebars::TemplateError> for ApiError {
@@ -141,4 +181,11 @@ impl From<serde_json::error::Error> for ApiError {
     fn from(e: serde_json::error::Error) -> Self {
         ApiError::JsonError(e.to_string())
     }
+}
+
+impl From<glob::PatternError> for ApiError {
+    fn from(e: glob::PatternError) -> Self {
+        ApiError::GlobError(e.to_string())
+    }
+
 }

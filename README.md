@@ -34,40 +34,122 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 ## crawler.json
 ```json
 {
-    "env": {
-        "CAFE_ID": "18432106",
-        "COOKIE": "xxx"
-    },
-    "steps": {
-        "step1": {
-            "name": "step1",
-            "input": {},
-            "req": {
-                "method": "GET",
-                "url": "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{{CAFE_ID}}/menus",
-                "header": {
-                    "priority": "u=1, i",
-                    "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": "\"Windows\"",
-                    "sec-fetch-dest": "empty",
-                    "sec-fetch-mode": "cors",
-                    "sec-fetch-site": "same-site",
-                    "x-cafe-product": "pc",
-                    "Accept": "application/json",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-                    "Referer": "https://cafe.naver.com/f-e/cafes/18432106/menus/1?viewType=L",
-                    "Origin": "https://cafe.naver.com",
-                    "Cookie": "{{{COOKIE}}}"
-                },
-                "filename": "menu_{{CAFE_ID}}.json"
-            },
-            "output": "C:/sources/crawler_data/step1",
-            "concurrency_limit": 10
+  "env": {
+    "CAFE_ID": "18432106",
+    "COOKIE": "XXXX"
+  },
+  "steps": {
+    "step1": {
+      "name": "step1",
+      "task_iters": [
+        {
+          "Range": {
+            "name": "IDX",
+            "offset": "0",
+            "take": "1"
+          }
         }
-
+      ],
+      "req": {
+        "method": "GET",
+        "url": "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{{CAFE_ID}}/menus",
+        "header": {
+          "priority": "u=1, i",
+          "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-site",
+          "x-cafe-product": "pc",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+          "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L",
+          "Origin": "https://cafe.naver.com",
+          "Cookie": "{{{COOKIE}}}"
+        },
+        "filename": "menu_{{CAFE_ID}}.json"
+      },
+      "output": "C:/sources/crawler_data/step1",
+      "concurrency_limit": 10
     },
-    "edges": []
+    "step2": {
+      "name": "step2",
+      "task_iters": [
+        {
+          "Pattern": {
+            "name": "MENU_ID",
+            "file_pattern": "C:/sources/crawler_data/step1/*.json",
+            "content_pattern": "$.result.menus[*].menuId"
+          }
+        }
+      ],
+      "req": {
+        "method": "GET",
+        "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page=1&pageSize=15&sortBy=TIME&viewType=L",
+        "header": {
+          "priority": "u=1, i",
+          "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-site",
+          "x-cafe-product": "pc",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+          "Referer": "https://cafe.naver.com/f-e/cafes/18432106/menus/1?viewType=L",
+          "Origin": "https://cafe.naver.com",
+          "Cookie": "{{{COOKIE}}}"
+        },
+        "filename": "page_size_{{CAFE_ID}}_{{MENU_ID}}.json"
+      },
+      "output": "C:/sources/crawler_data/step2",
+      "concurrency_limit": 10
+    },
+    "step3": {
+      "name": "step3",
+      "task_iters": [
+        {
+          "Pattern": {
+            "name": "MENU_ID",
+            "file_pattern": "C:/sources/crawler_data/step1/*.json",
+            "content_pattern": "$.result.menus[*].menuId"
+          }
+        },
+        {
+          "Range": {
+            "name": "PAGE_NO",
+            "offset": "1",
+            "take": "2"
+          }
+        }
+      ],
+      "req": {
+        "method": "GET",
+        "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page={{PAGE_NO}}&pageSize=15&sortBy=TIME&viewType=L",
+        "header": {
+          "priority": "u=1, i",
+          "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-site",
+          "x-cafe-product": "pc",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+          "Referer": "https://cafe.naver.com/f-e/cafes/18432106/menus/1?viewType=L",
+          "Origin": "https://cafe.naver.com",
+          "Cookie": "{{{COOKIE}}}"
+        },
+        "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json"
+      },
+      "output": "C:/sources/crawler_data/step3",
+      "concurrency_limit": 10
+    }
+  },
+  "edges": []
 }
 
 ```
