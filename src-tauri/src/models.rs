@@ -18,6 +18,23 @@ pub enum TaskIter {
 }
 
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct GlobJsonPattern {
+    pub name: String,
+    pub glob_pattern: String,
+    pub item_pattern: String,
+    pub env_pattern: HashMap<String, String>,
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+pub struct GlobJsonRangePattern {
+    pub name: String,
+    pub glob_pattern: String,
+    pub offset: String,
+    pub take: String,
+}
+
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct IterRange {
     pub name: String,
     pub offset: String,
@@ -27,14 +44,15 @@ pub struct IterRange {
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct IterPattern {
     pub name: String,
-    pub file_pattern: String,
+    pub glob_pattern: String,
     pub content_pattern: String,
 }
+
 
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct IterRangePattern {
     pub name: String,
-    pub file_pattern: String,
+    pub glob_pattern: String,
     pub offset: String,
     pub take: String,
 }

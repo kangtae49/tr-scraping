@@ -1,22 +1,30 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use encoding_rs::Encoding;
-use chardetng::EncodingDetector;
-use reqwest::{Client, RequestBuilder};
-use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{absolute, Path, PathBuf};
+use std::pin::Pin;
+use std::str::FromStr;
+
 use tokio::{sync::Semaphore};
+use tokio::io::AsyncReadExt;
 use tokio::sync::{Notify, RwLock};
+use tokio_stream::{Stream, StreamExt};
+use async_stream::stream;
+use glob::glob;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Client, RequestBuilder};
+use encoding_rs::Encoding;
+use chardetng::EncodingDetector;
 use handlebars::Handlebars;
 use petgraph::graph::Graph;
-use std::path::{absolute, Path, PathBuf};
-use std::str::FromStr;
 use mime_guess::from_path;
-use tokio::io::AsyncReadExt;
-use glob::glob;
 use serde_json::Value;
+
+use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern};
+
+
+type ItemData = HashMap<String, String>;
 
 type Result<T> = std::result::Result<T, ApiError>;
 
@@ -179,12 +187,6 @@ impl Crawler  {
         let env_lock = env_arc.read().await;
         let mut env = env_lock.clone();
 
-        let (first_name, iter_first) = if step.task_iters.len() > 0  {
-            get_iter(&step.task_iters[0], &env)?
-        } else {
-            ("KEY1".to_string(), vec!["0".to_string()])
-        };
-
         let step_handles_arc = self.step_handles.clone();
         let step_handles = step_handles_arc.read().await;
         let step_handle = step_handles.get(&step_name).ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
@@ -194,106 +196,138 @@ impl Crawler  {
 
         let mut handles = Vec::new();
 
-        for first_val in iter_first {
-            println!("{:?}", first_val);
-            env.insert(first_name.clone(), first_val.clone());
+        let mut stream = get_iters(&step.task_iters, &mut env).await?;
+        while let Some((vals, cur_env)) = stream.next().await {
+            println!("iter: {:?}", vals);
+            if paused.load(Ordering::SeqCst) {
+                println!("paused");
+                return Ok(());
+            }
 
-            let (second_name, iter_second) = if step.task_iters.len() > 1  {
-                get_iter(&step.task_iters[1], &env)?
-            } else {
-                ("KEY2".to_string(), vec!["0".to_string()])
+            let client = self.client.clone();
+
+            let url = get_handlebars(&req.url, &cur_env)?;
+
+            let method = req.method.clone();
+
+            let mut header = HeaderMap::new();
+            for (k, v) in req.header.iter() {
+                // let nm = HeaderName::from_str(k.to_lowercase().as_str())?;
+                let nm = HeaderName::from_str(k.as_str())?;
+                let new_v = get_handlebars(v, &cur_env)?;
+                let val = HeaderValue::from_str(&new_v)?;
+                header.insert(nm, val);
+            }
+            let folder = get_handlebars(&step.output, &cur_env)?;
+            std::fs::create_dir_all(Path::new(&folder))?;
+            let filename = get_handlebars(&req.filename, &cur_env)?;
+            let p: PathBuf = Path::new(&folder).join(filename);
+            let save_path= p.to_string_lossy().to_string();
+
+            let task = Task {
+                client,
+                url,
+                method,
+                header,
+                save_path,
             };
 
-            for second_val in iter_second {
-                env.insert(second_name.clone(), second_val.clone());
-
-                if paused.load(Ordering::SeqCst) {
-                    println!("paused");
-                    return Ok(());
+            let _permit = semaphore.clone().acquire_owned().await.unwrap();
+            let handle = tokio::task::spawn(async move {
+                if let Err(e) = run_task(task).await {
+                    eprintln!("Error: {:?}", e);
                 }
+            });
 
-                let client = self.client.clone();
+            handles.push(handle);
 
-                let url = get_handlebars(&req.url, &env)?;
-
-                let method = req.method.clone();
-
-                let mut header = HeaderMap::new();
-                for (k, v) in req.header.iter() {
-                    // let nm = HeaderName::from_str(k.to_lowercase().as_str())?;
-                    let nm = HeaderName::from_str(k.as_str())?;
-                    let new_v = get_handlebars(v, &env)?;
-                    let val = HeaderValue::from_str(&new_v)?;
-                    header.insert(nm, val);
-                }
-                println!("task 3");
-                let folder = get_handlebars(&step.output, &env)?;
-                std::fs::create_dir_all(Path::new(&folder))?;
-                let filename = get_handlebars(&req.filename, &env)?;
-                let p: PathBuf = Path::new(&folder).join(filename);
-                let save_path= p.to_string_lossy().to_string();
-
-                let task = Task {
-                    client,
-                    url,
-                    method,
-                    header,
-                    save_path,
-                };
-
-                println!("task before");
-                let _permit = semaphore.clone().acquire_owned().await.unwrap();
-                let handle = tokio::task::spawn(async move {
-                    if let Err(e) = run_task(task).await {
-                        eprintln!("Error: {:?}", e);
-                    }
-                });
-
-                println!("push handle");
-                handles.push(handle);                
-                
-            }
         }
-        println!("end task1");
+
         for handle in handles {
             handle.await.unwrap();
         }
-        println!("end task2");
         Ok(())
     }
 
 }
-fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<(String, Vec<String>)> {
-    let (name, list) = match task_iter {
-        TaskIter::Vec(iter_vec) => {
-            (iter_vec.name.clone(), get_iter_vec(iter_vec)?)
+
+async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<String, String>) -> Result<Pin<Box<impl Stream<Item=(Vec<Option<ItemData>>, HashMap<String, String>)> + 'a>>> {
+    let mut cur_vals: Vec<Option<ItemData>> = Vec::new();
+    let mut iters: Vec<VecDeque<ItemData>> = Vec::new();
+    for i in 0..task_iters.len() {
+        let list = get_iter(&task_iters[i], env)?;
+        iters.push(VecDeque::from(list));
+        cur_vals.push(iters[i].pop_front());
+        env.extend(cur_vals[i].clone().unwrap());
+    }
+
+    let len = iters.len();
+    Ok(Box::pin(stream! {
+        loop {
+            yield (cur_vals.clone(), env.clone());
+
+            for i in 0..len {
+                let idx = len - 1 - i;
+                let cur_val = iters[idx].pop_front();
+                cur_vals[idx] = cur_val.clone();
+                if let Some(val) = cur_val.clone() {
+                    env.extend(val.clone());
+                    break;
+                }
+            }
+            if cur_vals[0].is_none() {
+                break;
+            }
+            for i in 0..len {
+                if cur_vals[i].is_none() {
+                    if let Ok(list) = get_iter(&task_iters[i], env) {
+                        iters[i] = VecDeque::from(list);
+                        cur_vals[i] = iters[i].pop_front();
+                        env.extend(cur_vals[i].clone().unwrap());
+                    }
+                }
+            }
         }
-        TaskIter::Range(iter_range) => {
-            (iter_range.name.clone(), get_iter_range(iter_range, env)?)
-        }
-        TaskIter::Pattern(iter_pattern) => {
-            (iter_pattern.name.clone(), get_iter_pattern(iter_pattern)?)
-        }
-        TaskIter::RangePattern(iter_range_pattern) => {
-            (iter_range_pattern.name.clone(), get_iter_range_pattern(iter_range_pattern, env)?)
-        }
-    };
-    Ok((name, list))
+    }))
 }
 
-fn get_iter_range(iter_range: &IterRange, env: &HashMap<String, String>) -> Result<Vec<String>> {
+fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
+    let list = match task_iter {
+        TaskIter::Vec(iter_vec) => {
+            get_iter_vec(iter_vec)?
+        }
+        TaskIter::Range(iter_range) => {
+            get_iter_range(iter_range, env)?
+        }
+        TaskIter::Pattern(iter_pattern) => {
+            get_iter_pattern(iter_pattern)?
+        }
+        TaskIter::RangePattern(iter_range_pattern) => {
+            get_iter_range_pattern(iter_range_pattern, env)?
+        }
+    };
+    Ok(list)
+}
+
+fn get_iter_range(iter_range: &IterRange, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
+    let name = &iter_range.name;
     let offset_str = get_handlebars(&iter_range.offset, env)?;
     let take_str = get_handlebars(&iter_range.take, env)?;
     let offset: usize = offset_str.parse()?;
     let take: usize = take_str.parse()?;
     let start = offset;
     let end = offset + take;
-    Ok((start..end).map(|idx| idx.to_string()).collect())
+    let mut ret = vec![];
+    for i in start..end {
+        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
+    }
+    Ok(ret)
 }
 
-fn get_iter_range_pattern(iter_range_pattern: &IterRangePattern, env: &HashMap<String, String>) -> Result<Vec<String>> {
-    let file_pattern = iter_range_pattern.file_pattern.clone();
-    let file_path = get_handlebars(&file_pattern, env)?;
+fn get_iter_range_pattern(iter_range_pattern: &IterRangePattern, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
+    let name = &iter_range_pattern.name;
+    let glob_pattern = iter_range_pattern.glob_pattern.clone();
+    let file_path = get_handlebars(&glob_pattern, env)?;
     let mut offset_str = get_handlebars(&iter_range_pattern.offset, env)?;
     let mut take_str = get_handlebars(&iter_range_pattern.take, env)?;
 
@@ -313,51 +347,51 @@ fn get_iter_range_pattern(iter_range_pattern: &IterRangePattern, env: &HashMap<S
     let take: usize = take_str.parse()?;
     let start = offset;
     let end = offset + take;
-    Ok((start..end).map(|idx| idx.to_string()).collect())
+
+    let mut ret = vec![];
+    for i in start..end {
+        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
+    }
+    Ok(ret)
 }
 
 fn get_json_val(json: &Value, path: &str) -> Option<String> {
-    if let Ok(values) = jsonpath_lib::select(json, path) {
-        match values.first() {
-            Some(v) => {
-                Some(v.to_string())
-            }
-            None => None
-        }
-    } else {
-        None
-    }    
+    let Ok(values) = jsonpath_lib::select(json, path) else { return None };
+    let Some(v) = values.first() else { return None };
+    Some(v.to_string())
 }
 
-fn get_iter_pattern(iter_pattern: &IterPattern) -> Result<Vec<String>> {
-    let file_pattern = iter_pattern.file_pattern.clone();
-    let content_pattern = iter_pattern.content_pattern.clone();
-    let paths = glob(&file_pattern)?;
+fn get_iter_pattern(iter_pattern: &IterPattern) -> Result<Vec<ItemData>> {
+    let name = &iter_pattern.name;
+    let glob_pattern = &iter_pattern.glob_pattern;
+    let content_pattern = &iter_pattern.content_pattern;
+    let paths = glob(glob_pattern)?;
     let mut ret = vec![];
     for entry in paths {
-        if let Ok(p) = entry {
-            if let Ok(json_str) = std::fs::read_to_string(p) {
-                if let Ok(json) = serde_json::from_str(&json_str) {
-                    if let Ok(values) = jsonpath_lib::select(&json, &content_pattern) {
-                        for val in values {
-                            ret.push(val.to_string());
-                        }
-                    }
-                }
-            }
+        let Ok(p) = entry else { continue };
+        let Ok(json_str) = std::fs::read_to_string(p) else { continue };
+        let Ok(json) = serde_json::from_str(&json_str) else { continue };
+        let Ok(values) = jsonpath_lib::select(&json, content_pattern) else { continue };
+        for val in values {
+            ret.push(HashMap::from([(name.to_string(), val.to_string())]));
         }
     }
     Ok(ret)
 }
 
-fn get_iter_vec(iter_vec: &IterList) -> Result<Vec<String>> {
-    Ok(iter_vec.val.clone())
+fn get_iter_vec(iter_vec: &IterList) -> Result<Vec<ItemData>> {
+    let mut ret = vec![];
+    for val in iter_vec.val.clone() {
+        ret.push(HashMap::from([(val.to_string(), val.to_string())]));
+    }
+    Ok(ret)
 }
 
 async fn run_task(task: Task) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
 
+    println!("{}", &task.url);
     let mut req_builder: RequestBuilder;
     if task.method == "POST" {
         req_builder = task.client.post(&task.url);
@@ -391,7 +425,7 @@ async fn run_task(task: Task) -> Result<()> {
             .unwrap_or(encoding_rs::UTF_8)
             .decode(&bytes);
 
-        let json_value: serde_json::Value = serde_json::from_str(&text)?;
+        let json_value: Value = serde_json::from_str(&text)?;
         let formatted = serde_json::to_string_pretty(&json_value)?;
 
         let p_tmp = Path::new(tmp_path.as_str());
