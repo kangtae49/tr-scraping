@@ -3443,6 +3443,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sanitize-filename"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc984f4f9ceb736a7bb755c3e3bd17dc56370af2600c9780dcc48c66453da34d"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4646,6 +4655,7 @@ dependencies = [
  "mime_guess",
  "petgraph",
  "reqwest",
+ "sanitize-filename",
  "serde",
  "serde_json",
  "serde_with",

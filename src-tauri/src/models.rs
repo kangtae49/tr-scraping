@@ -14,12 +14,12 @@ pub enum TaskIter {
     Range(IterRange),
     Pattern(IterPattern),
     RangePattern(IterRangePattern),
-    Vec(IterList)
+    Vec(IterList),
+    GlobJsonPattern(IterGlobJsonPattern)
 }
 
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
-pub struct GlobJsonPattern {
-    pub name: String,
+pub struct IterGlobJsonPattern {
     pub glob_pattern: String,
     pub item_pattern: String,
     pub env_pattern: HashMap<String, String>,
@@ -207,3 +207,10 @@ impl From<glob::PatternError> for ApiError {
     }
 
 }
+
+impl From<jsonpath_lib::JsonPathError> for ApiError {
+    fn from(e: jsonpath_lib::JsonPathError) -> Self {
+        ApiError::JsonError(e.to_string())
+    }
+}
+

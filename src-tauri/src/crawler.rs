@@ -20,8 +20,9 @@ use handlebars::Handlebars;
 use petgraph::graph::Graph;
 use mime_guess::from_path;
 use serde_json::Value;
+use sanitize_filename::sanitize;
 
-use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern};
+use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern, IterGlobJsonPattern};
 
 
 type ItemData = HashMap<String, String>;
@@ -34,6 +35,7 @@ type Shared<T> = Arc<RwLock<T>>;
 pub struct Crawler {
     pub client: Client,
     pub env: Shared<HashMap<String, String>>,
+    pub header: Shared<HashMap<String, String>>,
     pub steps: Shared<HashMap<String, Step>>,
     pub step_handles: Shared<HashMap<String, StepHandle>>,
     pub dag: Shared<Graph<String, ()>>
@@ -44,6 +46,7 @@ impl Crawler  {
         Crawler {
             client: Client::new(),
             env: Arc::new(RwLock::new(HashMap::new())),
+            header: Arc::new(RwLock::new(HashMap::new())),
             steps: Arc::new(RwLock::new(HashMap::new())),
             step_handles: Arc::new(RwLock::new(HashMap::new())),
             dag: Arc::new(RwLock::new(Graph::<String, ()>::new())),
@@ -181,11 +184,14 @@ impl Crawler  {
         let steps_arc = Arc::clone(&self.steps);
         let steps = steps_arc.read().await;
         let env_arc = Arc::clone(&self.env);
+        let header_arc = Arc::clone(&self.header);
 
         let step = steps.get(&step_name).ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let req = step.req.clone();
         let env_lock = env_arc.read().await;
         let mut env = env_lock.clone();
+        let header_lock = header_arc.read().await;
+        let g_header = header_lock.clone();
 
         let step_handles_arc = self.step_handles.clone();
         let step_handles = step_handles_arc.read().await;
@@ -211,16 +217,22 @@ impl Crawler  {
             let method = req.method.clone();
 
             let mut header = HeaderMap::new();
-            for (k, v) in req.header.iter() {
-                // let nm = HeaderName::from_str(k.to_lowercase().as_str())?;
+            for (k, v) in g_header.iter() {
                 let nm = HeaderName::from_str(k.as_str())?;
                 let new_v = get_handlebars(v, &cur_env)?;
                 let val = HeaderValue::from_str(&new_v)?;
                 header.insert(nm, val);
             }
-            let folder = get_handlebars(&step.output, &cur_env)?;
+            
+            for (k, v) in req.header.iter() {
+                let nm = HeaderName::from_str(k.as_str())?;
+                let new_v = get_handlebars(v, &cur_env)?;
+                let val = HeaderValue::from_str(&new_v)?;
+                header.insert(nm, val);
+            }
+            let folder = get_handlebars_safe_dir(&step.output, &cur_env)?;
             std::fs::create_dir_all(Path::new(&folder))?;
-            let filename = get_handlebars(&req.filename, &cur_env)?;
+            let filename = sanitize(get_handlebars(&req.filename, &cur_env)?);
             let p: PathBuf = Path::new(&folder).join(filename);
             let save_path= p.to_string_lossy().to_string();
 
@@ -305,8 +317,43 @@ fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<Vec<I
         TaskIter::RangePattern(iter_range_pattern) => {
             get_iter_range_pattern(iter_range_pattern, env)?
         }
+        TaskIter::GlobJsonPattern(iter_glob_json_pattern) => {
+            get_iter_glob_json_pattern(iter_glob_json_pattern, env)?
+        }
     };
     Ok(list)
+}
+
+fn get_iter_glob_json_pattern(iter_glob_json_pattern: &IterGlobJsonPattern, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
+    let mut glob_pattern = iter_glob_json_pattern.glob_pattern.clone();
+    let mut item_pattern = iter_glob_json_pattern.item_pattern.clone();
+    let mut env_pattern = iter_glob_json_pattern.env_pattern.clone();
+
+    glob_pattern = get_handlebars(&glob_pattern, env)?;
+    item_pattern = get_handlebars(&item_pattern, env)?;
+    for (_k, v) in env_pattern.iter_mut() {
+        *v = get_handlebars(&v, env)?;
+    }
+
+    let paths = glob(&glob_pattern)?;
+    let mut ret = vec![];
+    for entry in paths {
+        let Ok(p) = entry else { continue };
+        let Ok(json_str) = std::fs::read_to_string(p) else { continue };
+        let Ok(json) = serde_json::from_str(&json_str) else { continue };
+        let Ok(item_vals) = jsonpath_lib::select(&json, &item_pattern) else { continue };
+        for item in item_vals {
+            let mut env_item = HashMap::new();
+            for (k, v) in env_pattern.iter() {
+                if let Some(j_val) = get_json_val(item, v) {
+                    env_item.insert(k.to_string(), j_val);
+                }
+            }
+            ret.push(env_item);
+        }
+    }
+    Ok(ret)
+
 }
 
 fn get_iter_range(iter_range: &IterRange, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
@@ -357,8 +404,11 @@ fn get_iter_range_pattern(iter_range_pattern: &IterRangePattern, env: &HashMap<S
 
 fn get_json_val(json: &Value, path: &str) -> Option<String> {
     let Ok(values) = jsonpath_lib::select(json, path) else { return None };
-    let Some(v) = values.first() else { return None };
-    Some(v.to_string())
+    let Some(&val) = values.first() else { return None };
+    match val {
+        Value::String(s) => Some(s.clone().trim().to_string()),
+        _ => Some(val.to_string().trim().to_string()),
+    }
 }
 
 fn get_iter_pattern(iter_pattern: &IterPattern) -> Result<Vec<ItemData>> {
@@ -448,6 +498,17 @@ fn get_handlebars(s: &str, env: &HashMap<String, String>) -> Result<String> {
     handlebars.register_template_string("output", s)?;
     Ok(handlebars.render("output", &env)?)
 }
+
+fn get_handlebars_safe_dir(s: &str, env: &HashMap<String, String>) -> Result<String> {
+    let mut new_env = env.clone();
+    for (_k, v) in new_env.iter_mut() {
+        *v = sanitize(v.clone());
+    }
+    let mut handlebars = Handlebars::new();
+    handlebars.register_template_string("output", s)?;
+    Ok(handlebars.render("output", &new_env)?)
+}
+
 
 fn exist_node(dag: &Graph<String, ()>, edge: &String) -> bool {
     !dag.node_indices().any(|idx| dag.node_weight(idx).map_or(false, |w| w == edge))
