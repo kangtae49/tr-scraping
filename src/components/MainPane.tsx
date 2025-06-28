@@ -4,12 +4,7 @@ import * as api from '@/api'
 import {TextContent, Step, Edge, Setting} from "@/bindings.ts";
 
 function MainPane(): React.JSX.Element {
-  const runStep = async (stepName: string): Promise<void> => {
-    console.log("MainPane.runStep", stepName);
-    api.runStep(stepName).then(() => {})
-      .catch(e => console.error(e.message))
-  }
-  useEffect(() => {
+  const loadJson = async (): Promise<void> => {
     api.getArgPath().then((path) => {
       if (path){
         console.info('path', path);
@@ -36,13 +31,23 @@ function MainPane(): React.JSX.Element {
         });
       }
     })
+  }
+  const runStep = async (stepName: string): Promise<void> => {
+    console.log("MainPane.runStep", stepName);
+    api.runStep(stepName).then(() => {})
+      .catch(e => console.error(e.message))
+  }
+  useEffect(() => {
   })
   return (
     <div>
       <h2>Crawler</h2>
+      <div onClick={() => loadJson()}>LoadJson</div>
       <div onClick={() => runStep("step1")}>Run Step1</div>
       <div onClick={() => runStep("step2")}>Run Step2</div>
       <div onClick={() => runStep("step3")}>Run Step3</div>
+      <div onClick={() => runStep("article")}>Run article</div>
+      <div onClick={() => runStep("attachment")}>Run attachment</div>
     </div>
   )
 }

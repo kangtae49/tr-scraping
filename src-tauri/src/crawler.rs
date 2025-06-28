@@ -21,8 +21,9 @@ use petgraph::graph::Graph;
 use mime_guess::from_path;
 use serde_json::Value;
 use sanitize_filename::sanitize;
+use mime::Mime;
 
-use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern, IterGlobJsonPattern};
+use crate::models::{ApiError, Edge, Step, StepHandle, TextContent, Setting, Task, TaskIter, IterRange, IterList, IterPattern, IterRangePattern, IterGlobJsonPattern, IterJsonRangePattern};
 
 
 type ItemData = HashMap<String, String>;
@@ -172,6 +173,7 @@ impl Crawler  {
         }
 
         self.assign(&self.env, setting.env).await;
+        self.assign(&self.header, setting.header).await;
         self.assign(&self.steps, setting.steps).await;
         self.assign(&self.step_handles, step_handles).await;
         self.assign(&self.dag, dag).await;
@@ -198,11 +200,21 @@ impl Crawler  {
         let step_handle = step_handles.get(&step_name).ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let semaphore = step_handle.semaphore.clone();
         let paused = step_handle.paused.clone();
+
+        let mut task_iters = step.task_iters.clone();
+        if task_iters.is_empty() {
+            task_iters.push(TaskIter::Range(IterRange{
+                name: format!("IDX_{}", &step_name),
+                offset: "0".to_string(),
+                take: "1".to_string(),
+            }))
+        }
+
         paused.store(false, Ordering::SeqCst);
 
         let mut handles = Vec::new();
 
-        let mut stream = get_iters(&step.task_iters, &mut env).await?;
+        let mut stream = get_iters(&task_iters, &mut env).await?;
         while let Some((vals, cur_env)) = stream.next().await {
             println!("iter: {:?}", vals);
             if paused.load(Ordering::SeqCst) {
@@ -267,16 +279,22 @@ async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<Strin
     let mut cur_vals: Vec<Option<ItemData>> = Vec::new();
     let mut iters: Vec<VecDeque<ItemData>> = Vec::new();
     for i in 0..task_iters.len() {
-        let list = get_iter(&task_iters[i], env)?;
+        let list = get_iter(&task_iters[i], env).unwrap_or_else(|_e| vec![]);
         iters.push(VecDeque::from(list));
-        cur_vals.push(iters[i].pop_front());
-        env.extend(cur_vals[i].clone().unwrap());
+        let cur_val = iters[i].pop_front();
+        cur_vals.push(cur_val.clone());
+        if let Some(val) = cur_val.clone() {
+            env.extend(val.clone());
+        }
     }
 
     let len = iters.len();
     Ok(Box::pin(stream! {
         loop {
-            yield (cur_vals.clone(), env.clone());
+            println!("loop start: {:?}", &cur_vals);
+            if !cur_vals.iter().any(|v| v.is_none()) {
+                yield (cur_vals.clone(), env.clone());
+            }
 
             for i in 0..len {
                 let idx = len - 1 - i;
@@ -288,17 +306,22 @@ async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<Strin
                 }
             }
             if cur_vals[0].is_none() {
+                println!("loop exit: {:?}", &cur_vals);
                 break;
             }
             for i in 0..len {
                 if cur_vals[i].is_none() {
                     if let Ok(list) = get_iter(&task_iters[i], env) {
                         iters[i] = VecDeque::from(list);
-                        cur_vals[i] = iters[i].pop_front();
-                        env.extend(cur_vals[i].clone().unwrap());
+                        let cur_val = iters[i].pop_front();
+                        cur_vals[i] = cur_val.clone();
+                        if let Some(val) = cur_val.clone() {
+                            env.extend(val.clone());
+                        }
                     }
                 }
             }
+            println!("loop end: {:?}", &cur_vals);
         }
     }))
 }
@@ -319,6 +342,9 @@ fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<Vec<I
         }
         TaskIter::GlobJsonPattern(iter_glob_json_pattern) => {
             get_iter_glob_json_pattern(iter_glob_json_pattern, env)?
+        }
+        TaskIter::GlobJsonRangePattern(iter_glob_json_range_pattern) => {
+            get_iter_glob_json_range_pattern(iter_glob_json_range_pattern, env)?
         }
     };
     Ok(list)
@@ -351,6 +377,36 @@ fn get_iter_glob_json_pattern(iter_glob_json_pattern: &IterGlobJsonPattern, env:
             }
             ret.push(env_item);
         }
+    }
+    Ok(ret)
+
+}
+
+fn get_iter_glob_json_range_pattern(iter_glob_json_range_pattern: &IterJsonRangePattern, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
+    let name = &iter_glob_json_range_pattern.name;
+    let mut file_pattern = iter_glob_json_range_pattern.file_pattern.clone();
+    let mut offset_pattern = iter_glob_json_range_pattern.offset_pattern.clone();
+    let mut take_pattern = iter_glob_json_range_pattern.take_pattern.clone();
+
+    file_pattern = get_handlebars(&file_pattern, env)?;
+    offset_pattern = get_handlebars(&offset_pattern, env)?;
+    take_pattern = get_handlebars(&take_pattern, env)?;
+
+    let mut paths = glob(&file_pattern)?;
+    let mut ret = vec![];
+    let entry = paths.next().ok_or(ApiError::JsonError("path error".into()))?;
+    let p = entry.map_err(|_| ApiError::JsonError("path error".into()))?;
+    let json_str = std::fs::read_to_string(p).map_err(|_| ApiError::JsonError("read error".into()))?;
+    let json = serde_json::from_str(&json_str).map_err(|_| ApiError::JsonError("json error".into()))?;
+    let offset_str = get_json_val(&json, &offset_pattern).unwrap_or(offset_pattern);
+    let take_str = get_json_val(&json, &take_pattern).unwrap_or(take_pattern);
+    let offset: usize = offset_str.parse()?;
+    let take: usize = take_str.parse()?;
+
+    let start = offset;
+    let end = offset + take;
+    for i in start..end {
+        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
     }
     Ok(ret)
 
@@ -441,18 +497,20 @@ async fn run_task(task: Task) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
 
-    println!("{}", &task.url);
     let mut req_builder: RequestBuilder;
     if task.method == "POST" {
         req_builder = task.client.post(&task.url);
     } else {
         req_builder = task.client.get(&task.url);
     }
-    req_builder = req_builder.headers(task.header);
+    req_builder = req_builder.headers(task.header.clone());
     let res = req_builder.send().await?;
-    println!("status: {:?}", res.status());
+    if !res.status().is_success() {
+        println!("run_task err: {:?}", &task);
+        return Ok(());
+    }
     let mut charset: Option<String> = None;
-
+    let mut mime_type: Option<String> = None;
     let content_type = res
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
@@ -464,12 +522,15 @@ async fn run_task(task: Task) -> Result<()> {
             .split("charset=")
             .nth(1)
             .and_then(|s| Some(s.to_string()));
+        if let Ok(mime) = content_type.clone().parse::<Mime>() {
+            mime_type = Some(mime.essence_str().to_string());
+        };
     }
     // let body = res.text().await?;
     // println!("body: {:?}", &body);
     let bytes = res.bytes().await?;
 
-    if Some("application/json".to_string()) == content_type {
+    if Some("application/json".to_string()) == mime_type {
         let label = charset.unwrap_or("utf-8".to_string());
         let (text, _, _) = Encoding::for_label(label.as_bytes())
             .unwrap_or(encoding_rs::UTF_8)
@@ -485,8 +546,10 @@ async fn run_task(task: Task) -> Result<()> {
         std::fs::rename(p_tmp, p)?;
     } else {
         let p_tmp = Path::new(tmp_path.as_str());
+        let p = Path::new(&save_path);
         let mut file = std::fs::File::create(p_tmp)?;
         file.write_all(&bytes)?;
+        std::fs::rename(p_tmp, p)?;
     }
 
     Ok(())

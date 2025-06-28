@@ -15,7 +15,8 @@ pub enum TaskIter {
     Pattern(IterPattern),
     RangePattern(IterRangePattern),
     Vec(IterList),
-    GlobJsonPattern(IterGlobJsonPattern)
+    GlobJsonPattern(IterGlobJsonPattern),
+    GlobJsonRangePattern(IterJsonRangePattern),
 }
 
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
@@ -26,11 +27,11 @@ pub struct IterGlobJsonPattern {
 }
 
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
-pub struct GlobJsonRangePattern {
+pub struct IterJsonRangePattern {
     pub name: String,
-    pub glob_pattern: String,
-    pub offset: String,
-    pub take: String,
+    pub file_pattern: String,
+    pub offset_pattern: String,
+    pub take_pattern: String,
 }
 
 
@@ -83,7 +84,7 @@ pub struct Step {
     pub concurrency_limit: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Task {
     pub client: Client,
     pub url: String,
@@ -96,6 +97,7 @@ pub struct Task {
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
 pub struct Setting {
     pub env: HashMap<String, String>,
+    pub header: HashMap<String, String>,
     pub steps: HashMap<String, Step>,
     pub edges: Vec<Edge>,
 }

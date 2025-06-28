@@ -35,8 +35,8 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 ```json
 {
   "env": {
-    "CAFE_ID": "18432106",
-    "COOKIE": "XXXX"
+    "CAFE_ID": "26989041",
+    "COOKIE": "xxxxx"
   },
   "header": {
     "priority": "u=1, i",
@@ -55,15 +55,7 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
   "steps": {
     "step1": {
       "name": "step1",
-      "task_iters": [
-        {
-          "Range": {
-            "name": "IDX",
-            "offset": "0",
-            "take": "1"
-          }
-        }
-      ],
+      "task_iters": [],
       "req": {
         "method": "GET",
         "url": "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{{CAFE_ID}}/menus",
@@ -79,10 +71,12 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
       "name": "step2",
       "task_iters": [
         {
-          "Pattern": {
-            "name": "MENU_ID",
+          "GlobJsonPattern": {
             "glob_pattern": "C:/sources/crawler_data/step1/*.json",
-            "content_pattern": "$.result.menus[*].menuId"
+            "item_pattern": "$.result.menus[*]",
+            "env_pattern": {
+              "MENU_ID": "$.menuId"
+            }
           }
         }
       ],
@@ -111,10 +105,11 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
           }
         },
         {
-          "Range": {
+          "GlobJsonRangePattern": {
             "name": "PAGE_NO",
-            "offset": "1",
-            "take": "2"
+            "file_pattern": "C:/sources/crawler_data/step2/page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
+            "offset_pattern": "1",
+            "take_pattern": "$.result.pageInfo.lastNavigationPageNumber"
           }
         }
       ],
@@ -126,12 +121,84 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
         },
         "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json"
       },
-      "output": "C:/sources/crawler_data/{{MENU_ID}}_{{MENU_NAME}}",
+      "output": "C:/sources/crawler_data/step3",
+      "concurrency_limit": 10
+    },
+    "article": {
+      "name": "article",
+      "task_iters": [
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "item_pattern": "$.result.menus[*]",
+            "env_pattern": {
+              "MENU_ID": "$.menuId",
+              "MENU_NAME": "$.name"
+            }
+          }
+        },
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
+            "item_pattern": "$.result.articleList[*]",
+            "env_pattern": {
+              "ARTICLE_ID": "$.item.articleId"
+            }
+          }
+        }
+      ],
+      "req": {
+        "method": "GET",
+        "url": "https://apis.naver.com/cafe-web/cafe-articleapi/v3/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?query=&menuId={{MENU_ID}}&useCafeId=true&requestFrom=A",
+        "header": {
+          "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
+        },
+        "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.json"
+      },
+      "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+      "concurrency_limit": 10
+    },
+    "attachment": {
+      "name": "attachment",
+      "task_iters": [
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "item_pattern": "$.result.menus[*]",
+            "env_pattern": {
+              "MENU_ID": "$.menuId",
+              "MENU_NAME": "$.name"
+            }
+          }
+        },
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+            "item_pattern": "$.result.attaches[*]",
+            "env_pattern": {
+              "URL": "$.url",
+              "FILE_NAME": "$.name"
+            }
+          }
+        }
+      ],
+      "req": {
+        "method": "GET",
+        "url": "{{{URL}}}",
+        "header": {
+          "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
+        },
+        "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}_attachment_{{FILE_NAME}}"
+      },
+      "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
       "concurrency_limit": 10
     }
+
+
   },
   "edges": []
 }
+
 
 
 ```

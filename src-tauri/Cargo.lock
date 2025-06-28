@@ -4652,6 +4652,7 @@ dependencies = [
  "infer",
  "itertools",
  "jsonpath_lib",
+ "mime",
  "mime_guess",
  "petgraph",
  "reqwest",
