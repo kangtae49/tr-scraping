@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use reqwest::Client;
 use reqwest::header::HeaderMap;
-use serde::{Serialize, Deserialize};
+use reqwest::Client;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use specta::Type;
-use tokio::sync::{Notify, Semaphore};
-use schemars::JsonSchema;
+use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::{Notify, Semaphore};
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub enum TaskIter {
@@ -35,7 +35,6 @@ pub struct IterJsonRangePattern {
     pub take_pattern: String,
 }
 
-
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterRange {
     pub name: String,
@@ -49,7 +48,6 @@ pub struct IterPattern {
     pub glob_pattern: String,
     pub content_pattern: String,
 }
-
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterRangePattern {
@@ -65,15 +63,12 @@ pub struct IterList {
     pub val: Vec<String>,
 }
 
-
-
-
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Request {
     pub url: String,
     pub method: String,
     pub header: HashMap<String, String>,
-    pub filename: String
+    pub filename: String,
 }
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
@@ -111,7 +106,7 @@ pub struct StepHandle {
     // pub client: Client,
     pub semaphore: Arc<Semaphore>,
     pub paused: Arc<AtomicBool>,
-    pub notifier: Arc<Notify>
+    pub notifier: Arc<Notify>,
 }
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
@@ -130,7 +125,6 @@ pub struct TextContent {
     pub enc: Option<String>,
     pub text: Option<String>,
 }
-
 
 #[derive(Type, Serialize, Deserialize, Error, Debug)]
 pub enum ApiError {
@@ -154,7 +148,6 @@ pub enum ApiError {
 
     #[error("Glob error: {0}")]
     GlobError(String),
-
 }
 
 impl From<handlebars::TemplateError> for ApiError {
@@ -208,7 +201,6 @@ impl From<glob::PatternError> for ApiError {
     fn from(e: glob::PatternError) -> Self {
         ApiError::GlobError(e.to_string())
     }
-
 }
 
 impl From<jsonpath_lib::JsonPathError> for ApiError {
@@ -216,4 +208,3 @@ impl From<jsonpath_lib::JsonPathError> for ApiError {
         ApiError::JsonError(e.to_string())
     }
 }
-

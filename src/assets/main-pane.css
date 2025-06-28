@@ -27,7 +27,10 @@ html, body, #root {
 .step .btn {
     cursor: pointer;
 }
-
+.fa-arrow-rotate-right { color: var(--icon-color); margin-right: 5px;}
+.fa-arrow-rotate-right:hover { transform: var(--scale); color: var(--hover-color);}
+.fa-folder { color: var(--icon-color); margin-right: 5px;}
+.fa-folder:hover { transform: var(--scale); color: var(--hover-color);}
 .fa-circle-play { color: var(--icon-color); margin-right: 5px;}
 .fa-circle-play:hover { transform: var(--scale); color: var(--hover-color);}
 .fa-circle-pause { color: var(--icon-color); margin-right: 5px;}

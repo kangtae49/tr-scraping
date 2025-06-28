@@ -1,13 +1,14 @@
-mod models;
 mod crawler;
+mod models;
 
-use tauri_specta::{collect_commands, Builder};
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::{atomic::Ordering, Arc};
 use tauri::State;
+use tauri_specta::{collect_commands, Builder};
 // use tauri::{State, Manager, Listener};
-use tokio::sync::{RwLock};
 use crate::crawler::Crawler;
-use crate::models::{ApiError, TextContent, Setting};
+use crate::models::{ApiError, Setting, TextContent};
+use tokio::sync::RwLock;
+// use tauri::api::dialog::FileDialogBuilder;
 
 type Result<T> = std::result::Result<T, ApiError>;
 
@@ -28,10 +29,7 @@ async fn get_arg_path(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<Option<S
 #[allow(dead_code)]
 #[tauri::command]
 #[specta::specta]
-async fn stop_step(
-    state: State<'_, Arc<RwLock<Crawler>>>,
-    step_name: String
-) -> Result<()> {
+async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
     println!("stop_step");
     let crawler = state.read().await;
     let mut map = crawler.step_handles.write().await;
@@ -43,10 +41,7 @@ async fn stop_step(
 #[allow(dead_code)]
 #[tauri::command]
 #[specta::specta]
-async fn resume(
-    state: State<'_, Arc<RwLock<Crawler>>>,
-    step_name: String
-) -> Result<()> {
+async fn resume(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
     println!("resume");
     let crawler = state.read().await;
     let mut map = crawler.step_handles.write().await;
@@ -56,7 +51,6 @@ async fn resume(
     step_handle_map.notifier.notify_one();
     Ok(())
 }
-
 
 #[tauri::command]
 #[specta::specta]
@@ -74,7 +68,6 @@ async fn read_txt(state: State<'_, Arc<RwLock<Crawler>>>, path_str: &str) -> Res
     Ok(text_content)
 }
 
-
 #[tauri::command]
 #[specta::specta]
 async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
@@ -84,30 +77,47 @@ async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Re
     Ok(())
 }
 
+// #[tauri::command]
+// fn open_file_dialog() {
+//     FileDialogBuilder::new()
+//         .add_filter("Text", &["txt", "md"])
+//         .pick_file(|file_path| {
+//             if let Some(path) = file_path {
+//                 println!("선택된 파일 경로: {:?}", path);
+//             } else {
+//                 println!("파일 선택이 취소되었습니다.");
+//             }
+//         });
+// }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-
-    let builder = Builder::<tauri::Wry>::new()
-        .commands(collect_commands![greet, get_arg_path, read_txt, load_crawler, run_step, stop_step]);
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        greet,
+        get_arg_path,
+        read_txt,
+        load_crawler,
+        run_step,
+        stop_step
+    ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     {
         use specta_typescript::BigIntExportBehavior;
         use specta_typescript::Typescript;
-        let ts = Typescript::default()
-            .bigint(BigIntExportBehavior::Number);
+        let ts = Typescript::default().bigint(BigIntExportBehavior::Number);
         builder
             .export(ts, "../src/bindings.ts")
             .expect("Failed to export typescript bindings");
 
         let schema = schemars::schema_for!(Setting);
         let json_schema = serde_json::to_string_pretty(&schema).unwrap();
-        let _ = std::fs::write("../setting.schema.json", json_schema)
-            .map_err(|e| println!("{:?}", e));
+        let _ =
+            std::fs::write("../setting.schema.json", json_schema).map_err(|e| println!("{:?}", e));
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(RwLock::new(Crawler::new())))
         // .manage(Arc::new(AtomicBool::new(false)))
         // .manage(Arc::new(Notify::new()))
