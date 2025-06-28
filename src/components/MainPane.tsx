@@ -1,9 +1,13 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useState} from "react";
 import '@assets/main-pane.css'
 import * as api from '@/api'
 import {TextContent, Step, Edge, Setting} from "@/bindings.ts";
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome'
+import { faCirclePlay, faCirclePause } from '@fortawesome/free-solid-svg-icons'
 
 function MainPane(): React.JSX.Element {
+  let [setting, setSetting] = useState<Setting | undefined>(undefined);
+  let [settingPath, setSettingPath] = useState<string>("");
   const loadJson = async (): Promise<void> => {
     api.getArgPath().then((path) => {
       if (path){
@@ -12,7 +16,9 @@ function MainPane(): React.JSX.Element {
           if (textContent.text) {
             // console.log(textContent.text);
             let setting = JSON.parse(textContent.text) as Setting;
-            console.log(setting);
+            setSetting(setting);
+            setSettingPath(path);
+            // console.log(setting);
             // let env = setting.env;
             // let steps = setting.steps;
             // let edges: Edge[] = []
@@ -26,28 +32,52 @@ function MainPane(): React.JSX.Element {
               .catch((reason) => {
                 console.error(reason);
               })
-            console.log(setting);
           }
         });
       }
     })
   }
+
   const runStep = async (stepName: string): Promise<void> => {
     console.log("MainPane.runStep", stepName);
     api.runStep(stepName).then(() => {})
       .catch(e => console.error(e.message))
   }
+
+  const stopStep = async (stepName: string): Promise<void> => {
+    console.log("MainPane.stopStep", stepName);
+    api.stopStep(stepName).then(() => {})
+      .catch(e => console.error(e.message))
+  }
+
+
   useEffect(() => {
-  })
+    if (setting) {
+      console.log("steps: " , setting.steps);
+    }
+  }, [setting])
   return (
-    <div>
+    <div className="main-pane">
       <h2>Crawler</h2>
-      <div onClick={() => loadJson()}>LoadJson</div>
-      <div onClick={() => runStep("step1")}>Run Step1</div>
-      <div onClick={() => runStep("step2")}>Run Step2</div>
-      <div onClick={() => runStep("step3")}>Run Step3</div>
-      <div onClick={() => runStep("article")}>Run article</div>
-      <div onClick={() => runStep("attachment")}>Run attachment</div>
+      <div className="load">
+        <div className="btn" onClick={() => loadJson()}><Icon icon={faCirclePlay} /></div>
+        <div className="label">LoadJson - {settingPath}</div>
+      </div>
+      {setting && (
+        <div>
+          {
+            Object.entries(setting.steps).map(([key, _step])  => {
+              return (
+                <div className="step">
+                  <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
+                  <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCirclePause} /></div>
+                  <div className="label">Run {key}</div>
+                </div>
+              )
+            })
+          }
+        </div>
+      )}
     </div>
   )
 }

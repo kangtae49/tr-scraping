@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Setting",
+  "type": "object",
+  "properties": {
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Step"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Edge"
+      }
+    }
+  },
+  "required": [
+    "env",
+    "header",
+    "steps",
+    "edges"
+  ],
+  "$defs": {
+    "Step": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "task_iters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskIter"
+          }
+        },
+        "req": {
+          "$ref": "#/$defs/Request"
+        },
+        "output": {
+          "type": "string"
+        },
+        "concurrency_limit": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "task_iters",
+        "req",
+        "output",
+        "concurrency_limit"
+      ]
+    },
+    "TaskIter": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "Range": {
+              "$ref": "#/$defs/IterRange"
+            }
+          },
+          "required": [
+            "Range"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Pattern": {
+              "$ref": "#/$defs/IterPattern"
+            }
+          },
+          "required": [
+            "Pattern"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "RangePattern": {
+              "$ref": "#/$defs/IterRangePattern"
+            }
+          },
+          "required": [
+            "RangePattern"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Vec": {
+              "$ref": "#/$defs/IterList"
+            }
+          },
+          "required": [
+            "Vec"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "GlobJsonPattern": {
+              "$ref": "#/$defs/IterGlobJsonPattern"
+            }
+          },
+          "required": [
+            "GlobJsonPattern"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "GlobJsonRangePattern": {
+              "$ref": "#/$defs/IterJsonRangePattern"
+            }
+          },
+          "required": [
+            "GlobJsonRangePattern"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "IterRange": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        },
+        "take": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "offset",
+        "take"
+      ]
+    },
+    "IterPattern": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "glob_pattern": {
+          "type": "string"
+        },
+        "content_pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "glob_pattern",
+        "content_pattern"
+      ]
+    },
+    "IterRangePattern": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "glob_pattern": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        },
+        "take": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "glob_pattern",
+        "offset",
+        "take"
+      ]
+    },
+    "IterList": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "val": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "val"
+      ]
+    },
+    "IterGlobJsonPattern": {
+      "type": "object",
+      "properties": {
+        "glob_pattern": {
+          "type": "string"
+        },
+        "item_pattern": {
+          "type": "string"
+        },
+        "env_pattern": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "glob_pattern",
+        "item_pattern",
+        "env_pattern"
+      ]
+    },
+    "IterJsonRangePattern": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file_pattern": {
+          "type": "string"
+        },
+        "offset_pattern": {
+          "type": "string"
+        },
+        "take_pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "file_pattern",
+        "offset_pattern",
+        "take_pattern"
+      ]
+    },
+    "Request": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "header": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "method",
+        "header",
+        "filename"
+      ]
+    },
+    "Edge": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string"
+        },
+        "b": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "a",
+        "b"
+      ]
+    }
+  }
+}

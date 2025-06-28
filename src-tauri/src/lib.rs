@@ -28,11 +28,11 @@ async fn get_arg_path(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<Option<S
 #[allow(dead_code)]
 #[tauri::command]
 #[specta::specta]
-async fn pause(
+async fn stop_step(
     state: State<'_, Arc<RwLock<Crawler>>>,
     step_name: String
 ) -> Result<()> {
-    println!("pause");
+    println!("stop_step");
     let crawler = state.read().await;
     let mut map = crawler.step_handles.write().await;
     let step_handle_map = map.get_mut(&step_name).unwrap();
@@ -89,7 +89,7 @@ async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Re
 pub fn run() {
 
     let builder = Builder::<tauri::Wry>::new()
-        .commands(collect_commands![greet, get_arg_path, read_txt, load_crawler, run_step]);
+        .commands(collect_commands![greet, get_arg_path, read_txt, load_crawler, run_step, stop_step]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     {
@@ -100,6 +100,11 @@ pub fn run() {
         builder
             .export(ts, "../src/bindings.ts")
             .expect("Failed to export typescript bindings");
+
+        let schema = schemars::schema_for!(Setting);
+        let json_schema = serde_json::to_string_pretty(&schema).unwrap();
+        let _ = std::fs::write("../setting.schema.json", json_schema)
+            .map_err(|e| println!("{:?}", e));
     }
 
     tauri::Builder::default()

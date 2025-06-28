@@ -16,3 +16,8 @@ export const runStep = async (stepName: string): Promise<void> => {
   console.log('invoke run_step:', stepName)
   return await invoke("run_step", {stepName})
 }
+
+export const stopStep = async (stepName: string): Promise<void> => {
+  console.log('invoke stop_step:', stepName)
+  return await invoke("stop_step", {stepName})
+}

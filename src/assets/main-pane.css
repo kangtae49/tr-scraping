@@ -7,3 +7,28 @@ html, body, #root {
     height: 100%;
 }
 
+.main-pane {
+    --icon-color: #f4a261;
+    --hover-color: #bd623c;
+    --scale: scale(1.3);
+    font-size: 0.8em;
+    padding: 10px;
+}
+
+.step, .load {
+    display: flex;
+    white-space: nowrap;
+}
+
+.step .label {
+
+}
+
+.step .btn {
+    cursor: pointer;
+}
+
+.fa-circle-play { color: var(--icon-color); margin-right: 5px;}
+.fa-circle-play:hover { transform: var(--scale); color: var(--hover-color);}
+.fa-circle-pause { color: var(--icon-color); margin-right: 5px;}
+.fa-circle-pause:hover { transform: var(--scale); color: var(--hover-color);}

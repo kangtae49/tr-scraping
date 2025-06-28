@@ -291,7 +291,6 @@ async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<Strin
     let len = iters.len();
     Ok(Box::pin(stream! {
         loop {
-            println!("loop start: {:?}", &cur_vals);
             if !cur_vals.iter().any(|v| v.is_none()) {
                 yield (cur_vals.clone(), env.clone());
             }
@@ -306,7 +305,6 @@ async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<Strin
                 }
             }
             if cur_vals[0].is_none() {
-                println!("loop exit: {:?}", &cur_vals);
                 break;
             }
             for i in 0..len {
@@ -321,7 +319,6 @@ async fn get_iters<'a>(task_iters: &'a Vec<TaskIter>, env: &'a mut HashMap<Strin
                     }
                 }
             }
-            println!("loop end: {:?}", &cur_vals);
         }
     }))
 }
@@ -496,6 +493,15 @@ fn get_iter_vec(iter_vec: &IterList) -> Result<Vec<ItemData>> {
 async fn run_task(task: Task) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
+    let p = Path::new(&save_path);
+    let p_tmp = Path::new(tmp_path.as_str());
+    if p.exists() {
+        return Ok(())
+    }
+    
+    if p_tmp.exists() {
+        let _ = std::fs::remove_file(p_tmp).map_err(|e| println!("{:?}", e));
+    }
 
     let mut req_builder: RequestBuilder;
     if task.method == "POST" {
@@ -539,14 +545,10 @@ async fn run_task(task: Task) -> Result<()> {
         let json_value: Value = serde_json::from_str(&text)?;
         let formatted = serde_json::to_string_pretty(&json_value)?;
 
-        let p_tmp = Path::new(tmp_path.as_str());
-        let p = Path::new(&save_path);
         let mut file = std::fs::File::create(p_tmp)?;
         file.write_all(formatted.as_bytes())?;
         std::fs::rename(p_tmp, p)?;
     } else {
-        let p_tmp = Path::new(tmp_path.as_str());
-        let p = Path::new(&save_path);
         let mut file = std::fs::File::create(p_tmp)?;
         file.write_all(&bytes)?;
         std::fs::rename(p_tmp, p)?;

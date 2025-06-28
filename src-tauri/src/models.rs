@@ -7,9 +7,10 @@ use serde::{Serialize, Deserialize};
 use serde_with::{serde_as, skip_serializing_none};
 use specta::Type;
 use tokio::sync::{Notify, Semaphore};
+use schemars::JsonSchema;
 use thiserror::Error;
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub enum TaskIter {
     Range(IterRange),
     Pattern(IterPattern),
@@ -19,14 +20,14 @@ pub enum TaskIter {
     GlobJsonRangePattern(IterJsonRangePattern),
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterGlobJsonPattern {
     pub glob_pattern: String,
     pub item_pattern: String,
     pub env_pattern: HashMap<String, String>,
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterJsonRangePattern {
     pub name: String,
     pub file_pattern: String,
@@ -35,14 +36,14 @@ pub struct IterJsonRangePattern {
 }
 
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterRange {
     pub name: String,
     pub offset: String,
     pub take: String,
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterPattern {
     pub name: String,
     pub glob_pattern: String,
@@ -50,7 +51,7 @@ pub struct IterPattern {
 }
 
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterRangePattern {
     pub name: String,
     pub glob_pattern: String,
@@ -58,7 +59,7 @@ pub struct IterRangePattern {
     pub take: String,
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct IterList {
     pub name: String,
     pub val: Vec<String>,
@@ -67,7 +68,7 @@ pub struct IterList {
 
 
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Request {
     pub url: String,
     pub method: String,
@@ -75,7 +76,7 @@ pub struct Request {
     pub filename: String
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Step {
     pub name: String,
     pub task_iters: Vec<TaskIter>,
@@ -94,7 +95,7 @@ pub struct Task {
 }
 
 #[serde_as]
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Setting {
     pub env: HashMap<String, String>,
     pub header: HashMap<String, String>,
@@ -113,7 +114,7 @@ pub struct StepHandle {
     pub notifier: Arc<Notify>
 }
 
-#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Edge {
     pub a: String,
     pub b: String,
