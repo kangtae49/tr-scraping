@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap};
 use std::io::Write;
 use std::path::{absolute, Path, PathBuf};
 use std::pin::Pin;
@@ -194,7 +194,7 @@ impl Crawler {
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let req = step.req.clone();
         let env_lock = env_arc.read().await;
-        let mut env = env_lock.clone();
+        let env = env_lock.clone();
         let header_lock = header_arc.read().await;
         let g_header = header_lock.clone();
 
@@ -219,7 +219,7 @@ impl Crawler {
 
         let mut handles = Vec::new();
 
-        let mut stream = get_iters(&task_iters, &mut env).await?;
+        let mut stream = get_iters(task_iters, env.clone());
         while let Some((vals, cur_env)) = stream.next().await {
             println!("iter: {:?}", vals);
             if paused.load(Ordering::SeqCst) {
@@ -278,24 +278,25 @@ impl Crawler {
     }
 }
 
-async fn get_iters<'a>(
-    task_iters: &'a Vec<TaskIter>,
-    env: &'a mut HashMap<String, String>,
-) -> Result<Pin<Box<impl Stream<Item = (Vec<Option<ItemData>>, HashMap<String, String>)> + 'a>>> {
-    let mut cur_vals: Vec<Option<ItemData>> = Vec::new();
-    let mut iters: Vec<VecDeque<ItemData>> = Vec::new();
-    for i in 0..task_iters.len() {
-        let list = get_iter(&task_iters[i], env).unwrap_or_else(|_e| vec![]);
-        iters.push(VecDeque::from(list));
-        let cur_val = iters[i].pop_front();
-        cur_vals.push(cur_val.clone());
-        if let Some(val) = cur_val.clone() {
-            env.extend(val.clone());
+fn get_iters(
+    task_iters: Vec<TaskIter>,
+    env: HashMap<String, String>,
+) -> Pin<Box<dyn Stream<Item = (Vec<Option<ItemData>>, HashMap<String, String>)> + Send>> {
+    Box::pin(stream! {
+        let mut cur_vals: Vec<Option<ItemData>> = Vec::new();
+        let mut iters: Vec<Pin<Box<dyn Stream<Item = ItemData> + Send>>> = Vec::new();
+        let mut env = env.clone();
+        let len = task_iters.len();
+        for i in 0..len {
+            let task_iter = get_iter(task_iters[i].clone(), env.clone());
+            iters.push(task_iter);
+            let cur_val = iters[i].next().await;
+            cur_vals.push(cur_val.clone());
+            if let Some(val) = cur_val.clone() {
+                env.extend(val.clone());
+            }
         }
-    }
 
-    let len = iters.len();
-    Ok(Box::pin(stream! {
         loop {
             if !cur_vals.iter().any(|v| v.is_none()) {
                 yield (cur_vals.clone(), env.clone());
@@ -303,7 +304,7 @@ async fn get_iters<'a>(
 
             for i in 0..len {
                 let idx = len - 1 - i;
-                let cur_val = iters[idx].pop_front();
+                let cur_val = iters[idx].next().await;
                 cur_vals[idx] = cur_val.clone();
                 if let Some(val) = cur_val.clone() {
                     env.extend(val.clone());
@@ -315,165 +316,163 @@ async fn get_iters<'a>(
             }
             for i in 0..len {
                 if cur_vals[i].is_none() {
-                    if let Ok(list) = get_iter(&task_iters[i], env) {
-                        iters[i] = VecDeque::from(list);
-                        let cur_val = iters[i].pop_front();
-                        cur_vals[i] = cur_val.clone();
-                        if let Some(val) = cur_val.clone() {
-                            env.extend(val.clone());
-                        }
+                    let task_iter = get_iter(task_iters[i].clone(), env.clone());
+                    iters[i] = task_iter;
+                    let cur_val = iters[i].next().await;
+                    cur_vals[i] = cur_val.clone();
+                    if let Some(val) = cur_val.clone() {
+                        env.extend(val.clone());
                     }
                 }
             }
         }
-    }))
+    })
 }
 
-fn get_iter(task_iter: &TaskIter, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
-    let list = match task_iter {
-        TaskIter::Vec(iter_vec) => get_iter_vec(iter_vec)?,
-        TaskIter::Range(iter_range) => get_iter_range(iter_range, env)?,
-        TaskIter::Pattern(iter_pattern) => get_iter_pattern(iter_pattern)?,
+fn get_iter(task_iter: TaskIter, env: HashMap<String, String>) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    match task_iter {
+        TaskIter::Vec(iter_vec) => get_iter_vec(iter_vec),
+        TaskIter::Range(iter_range) => get_iter_range(iter_range, env),
+        TaskIter::Pattern(iter_pattern) => get_iter_pattern(iter_pattern),
         TaskIter::RangePattern(iter_range_pattern) => {
-            get_iter_range_pattern(iter_range_pattern, env)?
+            get_iter_range_pattern(iter_range_pattern, env)
         }
         TaskIter::GlobJsonPattern(iter_glob_json_pattern) => {
-            get_iter_glob_json_pattern(iter_glob_json_pattern, env)?
+            get_iter_glob_json_pattern(iter_glob_json_pattern, env)
         }
         TaskIter::GlobJsonRangePattern(iter_glob_json_range_pattern) => {
-            get_iter_glob_json_range_pattern(iter_glob_json_range_pattern, env)?
+            get_iter_glob_json_range_pattern(iter_glob_json_range_pattern, env)
         }
-    };
-    Ok(list)
+    }
 }
 
 fn get_iter_glob_json_pattern(
-    iter_glob_json_pattern: &IterGlobJsonPattern,
-    env: &HashMap<String, String>,
-) -> Result<Vec<ItemData>> {
-    let mut glob_pattern = iter_glob_json_pattern.glob_pattern.clone();
-    let mut item_pattern = iter_glob_json_pattern.item_pattern.clone();
-    let mut env_pattern = iter_glob_json_pattern.env_pattern.clone();
+    iter_glob_json_pattern: IterGlobJsonPattern,
+    env: HashMap<String, String>,
+) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream! {
+        let glob_pattern = iter_glob_json_pattern.glob_pattern;
+        let item_pattern = iter_glob_json_pattern.item_pattern;
+        let mut env_pattern = iter_glob_json_pattern.env_pattern;
 
-    glob_pattern = get_handlebars(&glob_pattern, env)?;
-    item_pattern = get_handlebars(&item_pattern, env)?;
-    for (_k, v) in env_pattern.iter_mut() {
-        *v = get_handlebars(&v, env)?;
-    }
+        let Ok(glob_pattern) = get_handlebars(&glob_pattern, &env) else { return ;};
+        let Ok(item_pattern) = get_handlebars(&item_pattern, &env) else { return ;};
 
-    let paths = glob(&glob_pattern)?;
-    let mut ret = vec![];
-    for entry in paths {
-        let Ok(p) = entry else { continue };
-        let Ok(json_str) = std::fs::read_to_string(p) else {
-            continue;
-        };
-        let Ok(json) = serde_json::from_str(&json_str) else {
-            continue;
-        };
-        let Ok(item_vals) = jsonpath_lib::select(&json, &item_pattern) else {
-            continue;
-        };
-        for item in item_vals {
-            let mut env_item = HashMap::new();
-            for (k, v) in env_pattern.iter() {
-                if let Some(j_val) = get_json_val(item, v) {
-                    env_item.insert(k.to_string(), j_val);
-                }
-            }
-            ret.push(env_item);
+        for (_k, v) in env_pattern.iter_mut() {
+            let Ok(new_val) = get_handlebars(&v, &env) else { continue; };
+            *v = new_val;
         }
-    }
-    Ok(ret)
+
+        let Ok(paths) = glob(&glob_pattern) else { return ;};
+        for entry in paths {
+            let Ok(p) = entry else { continue };
+            let Ok(json_str) = std::fs::read_to_string(p) else {
+                continue;
+            };
+            let Ok(json) = serde_json::from_str(&json_str) else {
+                continue;
+            };
+            let Ok(item_vals) = jsonpath_lib::select(&json, &item_pattern) else {
+                continue;
+            };
+            for item in item_vals {
+                let mut env_item = HashMap::new();
+                for (k, v) in env_pattern.iter() {
+                    if let Some(j_val) = get_json_val(item, v) {
+                        env_item.insert(k.to_string(), j_val);
+                    }
+                }
+                yield env_item;
+            }
+        }
+
+    })
 }
 
 fn get_iter_glob_json_range_pattern(
-    iter_glob_json_range_pattern: &IterJsonRangePattern,
-    env: &HashMap<String, String>,
-) -> Result<Vec<ItemData>> {
-    let name = &iter_glob_json_range_pattern.name;
-    let mut file_pattern = iter_glob_json_range_pattern.file_pattern.clone();
-    let mut offset_pattern = iter_glob_json_range_pattern.offset_pattern.clone();
-    let mut take_pattern = iter_glob_json_range_pattern.take_pattern.clone();
+    iter_glob_json_range_pattern: IterJsonRangePattern,
+    env: HashMap<String, String>,
+) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream! {
+        let name = iter_glob_json_range_pattern.name;
+        let file_pattern = iter_glob_json_range_pattern.file_pattern;
+        let offset_pattern = iter_glob_json_range_pattern.offset_pattern;
+        let take_pattern = iter_glob_json_range_pattern.take_pattern;
 
-    file_pattern = get_handlebars(&file_pattern, env)?;
-    offset_pattern = get_handlebars(&offset_pattern, env)?;
-    take_pattern = get_handlebars(&take_pattern, env)?;
+        let Ok(file_pattern) = get_handlebars(&file_pattern, &env) else { return ; };
+        let Ok(offset_pattern) = get_handlebars(&offset_pattern, &env) else { return ;};
+        let Ok(take_pattern) = get_handlebars(&take_pattern, &env) else { return; };
 
-    let mut paths = glob(&file_pattern)?;
-    let mut ret = vec![];
-    let entry = paths
-        .next()
-        .ok_or(ApiError::JsonError("path error".into()))?;
-    let p = entry.map_err(|_| ApiError::JsonError("path error".into()))?;
-    let json_str =
-        std::fs::read_to_string(p).map_err(|_| ApiError::JsonError("read error".into()))?;
-    let json =
-        serde_json::from_str(&json_str).map_err(|_| ApiError::JsonError("json error".into()))?;
-    let offset_str = get_json_val(&json, &offset_pattern).unwrap_or(offset_pattern);
-    let take_str = get_json_val(&json, &take_pattern).unwrap_or(take_pattern);
-    let offset: usize = offset_str.parse()?;
-    let take: usize = take_str.parse()?;
+        let Ok(mut paths) = glob(&file_pattern) else { return ; };
+        let Some(entry) = paths.next() else { return ; };
+        let Ok(p) = entry else { return ; };
+        let Ok(json_str) = std::fs::read_to_string(p) else { return; };
+        let Ok(json) = serde_json::from_str(&json_str) else { return ; };
+        let offset_str = get_json_val(&json, &offset_pattern).unwrap_or(offset_pattern);
+        let take_str = get_json_val(&json, &take_pattern).unwrap_or(take_pattern);
+        let Ok(offset) = offset_str.parse::<usize>() else { return ;};
+        let Ok(take) = take_str.parse::<usize>() else {return ;};
 
-    let start = offset;
-    let end = offset + take;
-    for i in start..end {
-        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
-    }
-    Ok(ret)
+        let start = offset;
+        let end = offset + take;
+        for i in start..end {
+            yield HashMap::from([(name.to_string(), i.to_string())]);
+        }
+    })
 }
 
-fn get_iter_range(iter_range: &IterRange, env: &HashMap<String, String>) -> Result<Vec<ItemData>> {
-    let name = &iter_range.name;
-    let offset_str = get_handlebars(&iter_range.offset, env)?;
-    let take_str = get_handlebars(&iter_range.take, env)?;
-    let offset: usize = offset_str.parse()?;
-    let take: usize = take_str.parse()?;
-    let start = offset;
-    let end = offset + take;
-    let mut ret = vec![];
-    for i in start..end {
-        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
-    }
-    Ok(ret)
+fn get_iter_range(iter_range: IterRange, env: HashMap<String, String>) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream! {
+        let name = iter_range.name;
+        let offset_pattern = iter_range.offset;
+        let take_pattern = iter_range.take;
+        let Ok(offset_str) = get_handlebars(&offset_pattern, &env) else { return ; };
+        let Ok(take_str) = get_handlebars(&take_pattern, &env) else { return ; };
+        let Ok(offset) = offset_str.parse::<usize>() else { return ; };
+        let Ok(take) = take_str.parse::<usize>() else { return ;};
+        let start = offset;
+        let end = offset + take;
+        for i in start..end {
+            yield HashMap::from([(name.to_string(), i.to_string())]);
+        }
+    })
 }
 
 fn get_iter_range_pattern(
-    iter_range_pattern: &IterRangePattern,
-    env: &HashMap<String, String>,
-) -> Result<Vec<ItemData>> {
-    let name = &iter_range_pattern.name;
-    let glob_pattern = iter_range_pattern.glob_pattern.clone();
-    let file_path = get_handlebars(&glob_pattern, env)?;
-    let mut offset_str = get_handlebars(&iter_range_pattern.offset, env)?;
-    let mut take_str = get_handlebars(&iter_range_pattern.take, env)?;
+    iter_range_pattern: IterRangePattern,
+    env: HashMap<String, String>,
+) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream! {
+        let name = iter_range_pattern.name;
+        let glob_pattern = iter_range_pattern.glob_pattern;
+        let Ok(file_path) = get_handlebars(&glob_pattern, &env) else { return ; };
+        let Ok(mut offset_str) = get_handlebars(&iter_range_pattern.offset, &env) else { return ;};
+        let Ok(mut take_str) = get_handlebars(&iter_range_pattern.take, &env) else { return ;};
 
-    if let Ok(json_str) = std::fs::read_to_string(Path::new(&file_path)) {
-        if let Ok(json) = serde_json::from_str(&json_str) {
-            match get_json_val(&json, &offset_str) {
-                Some(val) => {
-                    offset_str = val;
-                }
-                None => {}
+        let Ok(json_str) = std::fs::read_to_string(Path::new(&file_path)) else { return ; };
+        let Ok(json) = serde_json::from_str(&json_str) else { return; };
+        match get_json_val(&json, &offset_str) {
+            Some(val) => {
+                offset_str = val;
             }
-            match get_json_val(&json, &take_str) {
-                Some(val) => {
-                    take_str = val;
-                }
-                None => {}
-            }
+            None => {}
         }
-    }
-    let offset: usize = offset_str.parse()?;
-    let take: usize = take_str.parse()?;
-    let start = offset;
-    let end = offset + take;
+        match get_json_val(&json, &take_str) {
+            Some(val) => {
+                take_str = val;
+            }
+            None => {}
+        }
 
-    let mut ret = vec![];
-    for i in start..end {
-        ret.push(HashMap::from([(name.to_string(), i.to_string())]));
-    }
-    Ok(ret)
+        let Ok(offset) = offset_str.parse::<usize>() else { return ; };
+        let Ok(take) = take_str.parse::<usize>() else { return ; };
+        let start = offset;
+        let end = offset + take;
+
+        for i in start..end {
+            yield HashMap::from([(name.to_string(), i.to_string())]);
+        }
+    })
 }
 
 fn get_json_val(json: &Value, path: &str) -> Option<String> {
@@ -489,36 +488,32 @@ fn get_json_val(json: &Value, path: &str) -> Option<String> {
     }
 }
 
-fn get_iter_pattern(iter_pattern: &IterPattern) -> Result<Vec<ItemData>> {
-    let name = &iter_pattern.name;
-    let glob_pattern = &iter_pattern.glob_pattern;
-    let content_pattern = &iter_pattern.content_pattern;
-    let paths = glob(glob_pattern)?;
-    let mut ret = vec![];
-    for entry in paths {
-        let Ok(p) = entry else { continue };
-        let Ok(json_str) = std::fs::read_to_string(p) else {
-            continue;
-        };
-        let Ok(json) = serde_json::from_str(&json_str) else {
-            continue;
-        };
-        let Ok(values) = jsonpath_lib::select(&json, content_pattern) else {
-            continue;
-        };
-        for val in values {
-            ret.push(HashMap::from([(name.to_string(), val.to_string())]));
+fn get_iter_pattern(iter_pattern: IterPattern) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream!{
+        let name = iter_pattern.name;
+        let glob_pattern = iter_pattern.glob_pattern;
+        let content_pattern = iter_pattern.content_pattern;
+        if let Ok(paths) = glob(&glob_pattern) {
+            for entry in paths {
+                let Ok(p) = entry else { continue };
+                let Ok(json_str) = std::fs::read_to_string(p) else { continue; };
+                let Ok(json) = serde_json::from_str(&json_str) else { continue; };
+                let Ok(values) = jsonpath_lib::select(&json, &content_pattern) else { continue; };
+                for val in values {
+                    yield HashMap::from([(name.to_string(), val.to_string())]);
+                }
+            }
         }
-    }
-    Ok(ret)
+    })
 }
 
-fn get_iter_vec(iter_vec: &IterList) -> Result<Vec<ItemData>> {
-    let mut ret = vec![];
-    for val in iter_vec.val.clone() {
-        ret.push(HashMap::from([(val.to_string(), val.to_string())]));
-    }
-    Ok(ret)
+fn get_iter_vec(iter_vec: IterList) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
+    Box::pin(stream! {
+        let name = iter_vec.name;
+        for v in iter_vec.val.iter() {
+            yield HashMap::from([(name.clone(), v.clone())]);
+        }
+    })
 }
 
 async fn run_task(task: Task) -> Result<()> {
@@ -542,10 +537,12 @@ async fn run_task(task: Task) -> Result<()> {
     }
     req_builder = req_builder.headers(task.header.clone());
     let res = req_builder.send().await?;
+
     if !res.status().is_success() {
-        println!("run_task err: {:?}", &task);
+        println!("run_task err: {:?} {:?}", res.status(), &task);
         return Ok(());
     }
+
     let mut charset: Option<String> = None;
     let mut mime_type: Option<String> = None;
     let content_type = res
@@ -567,6 +564,7 @@ async fn run_task(task: Task) -> Result<()> {
     // let body = res.text().await?;
     // println!("body: {:?}", &body);
     let bytes = res.bytes().await?;
+
 
     if Some("application/json".to_string()) == mime_type {
         let label = charset.unwrap_or("utf-8".to_string());
