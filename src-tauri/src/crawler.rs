@@ -183,7 +183,7 @@ impl Crawler {
     }
 
     pub async fn run_step(&mut self, step_name: String) -> Result<()> {
-        println!("crawler run_step: {}", &step_name);
+        println!("Start Step: {}", &step_name);
         let steps_arc = Arc::clone(&self.steps);
         let steps = steps_arc.read().await;
         let env_arc = Arc::clone(&self.env);
@@ -274,6 +274,7 @@ impl Crawler {
         for handle in handles {
             handle.await.unwrap();
         }
+        println!("End Step: {}", &step_name);
         Ok(())
     }
 }
@@ -288,7 +289,7 @@ fn get_iters(
         let mut env = env.clone();
         let len = task_iters.len();
         
-        for i in 0..len {
+        for _i in 0..len {
             iters.push(Box::pin(tokio_stream::empty()));
             cur_vals.push(None);
         }
