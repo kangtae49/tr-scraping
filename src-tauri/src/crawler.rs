@@ -287,47 +287,43 @@ fn get_iters(
         let mut iters: Vec<Pin<Box<dyn Stream<Item = ItemData> + Send>>> = Vec::new();
         let mut env = env.clone();
         let len = task_iters.len();
+        
         for i in 0..len {
-            let task_iter = get_iter(task_iters[i].clone(), env.clone());
-            iters.push(task_iter);
-            let cur_val = iters[i].next().await;
-            cur_vals.push(cur_val.clone());
-            if let Some(val) = cur_val.clone() {
-                env.extend(val.clone());
-            }
+            iters.push(Box::pin(tokio_stream::empty()));
+            cur_vals.push(None);
         }
-
+        
+        let mut pos = 0;
+        iters[pos] = get_iter(task_iters[pos].clone(), env.clone());
+        println!("Start iter loop");
         loop {
-            if !cur_vals.iter().any(|v| v.is_none()) {
-                yield (cur_vals.clone(), env.clone());
+            if pos != 0 && cur_vals[pos].is_none() {
+                iters[pos] = get_iter(task_iters[pos].clone(), env.clone());
             }
-
-            for i in 0..len {
-                let idx = len - 1 - i;
-                let cur_val = iters[idx].next().await;
-                cur_vals[idx] = cur_val.clone();
-                if let Some(val) = cur_val.clone() {
-                    env.extend(val.clone());
-                    break;
+            let pos_val = iters[pos].next().await;
+            cur_vals[pos] = pos_val.clone();
+            match pos_val {
+                Some(pos_v) => {
+                    env.extend(pos_v.clone());
+                    if pos == len - 1 {
+                        yield (cur_vals.clone(), env.clone());
+                    } else {
+                        pos += 1;
+                    }
                 }
-            }
-            if cur_vals[0].is_none() {
-                break;
-            }
-            for i in 0..len {
-                if cur_vals[i].is_none() {
-                    let task_iter = get_iter(task_iters[i].clone(), env.clone());
-                    iters[i] = task_iter;
-                    let cur_val = iters[i].next().await;
-                    cur_vals[i] = cur_val.clone();
-                    if let Some(val) = cur_val.clone() {
-                        env.extend(val.clone());
+                None => {
+                    if pos == 0 {
+                        println!("End iter loop");
+                        break;
+                    } else {
+                        pos -= 1;
                     }
                 }
             }
         }
     })
 }
+
 
 fn get_iter(task_iter: TaskIter, env: HashMap<String, String>) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
     match task_iter {
