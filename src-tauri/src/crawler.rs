@@ -18,15 +18,13 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, RequestBuilder};
 use sanitize_filename::sanitize;
 use serde_json::Value;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt};
 use tokio::sync::Semaphore;
 use tokio::sync::{Notify, RwLock};
 use tokio_stream::{Stream, StreamExt};
 
-use crate::models::{
-    ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange,
-    IterRangePattern, Setting, Step, StepHandle, Task, TaskIter, TextContent,
-};
+
+use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, OutputHtml, Setting, Step, StepHandle, Task, TaskHtml, TaskIter, TextContent};
 
 type ItemData = HashMap<String, String>;
 
@@ -41,6 +39,8 @@ pub struct Crawler {
     pub steps: Shared<HashMap<String, Step>>,
     pub step_handles: Shared<HashMap<String, StepHandle>>,
     pub dag: Shared<Graph<String, ()>>,
+    pub output_html: Shared<Option<OutputHtml>>,
+    pub output_html_handle: Shared<Option<StepHandle>>,
 }
 
 impl Crawler {
@@ -52,6 +52,8 @@ impl Crawler {
             steps: Arc::new(RwLock::new(HashMap::new())),
             step_handles: Arc::new(RwLock::new(HashMap::new())),
             dag: Arc::new(RwLock::new(Graph::<String, ()>::new())),
+            output_html: Arc::new(RwLock::new(None)),
+            output_html_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -173,11 +175,22 @@ impl Crawler {
             }
         }
 
+        if let Some(output_html) = setting.output_html.clone() {
+            let output_html_handle = StepHandle {
+                name: "output_html".to_string(),
+                notifier: Arc::new(Notify::new()),
+                paused: Arc::new(AtomicBool::new(false)),
+                semaphore: Arc::new(Semaphore::new(output_html.concurrency_limit)),
+            };
+            self.assign(&self.output_html_handle, Some(output_html_handle)).await;
+        }
+
         self.assign(&self.env, setting.env).await;
         self.assign(&self.header, setting.header).await;
         self.assign(&self.steps, setting.steps).await;
         self.assign(&self.step_handles, step_handles).await;
         self.assign(&self.dag, dag).await;
+        self.assign(&self.output_html, setting.output_html).await;
 
         Ok(())
     }
@@ -277,7 +290,108 @@ impl Crawler {
         println!("End Step: {}", &step_name);
         Ok(())
     }
+
+    pub async fn run_output_html(&mut self) -> Result<()> {
+        println!("Start run_output_html");
+        let env_arc = Arc::clone(&self.env);
+        let env_lock = env_arc.read().await;
+        let env = env_lock.clone();
+
+        let output_html_arc = self.output_html.clone();
+        let output_html_lock = output_html_arc.read().await;
+        let Some(output_html) = output_html_lock.clone() else { return Ok(()) };
+
+        let output_html_handle_arc = self.output_html_handle.clone();
+        let output_html_handle_lock = output_html_handle_arc.read().await;
+        let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
+        
+        let semaphore = output_html_handle.semaphore.clone();
+        let paused = output_html_handle.paused.clone();
+
+        let mut task_iters = output_html.task_iters.clone();
+        if task_iters.is_empty() {
+            task_iters.push(TaskIter::Range(IterRange {
+                name: "IDX".to_string(),
+                offset: "0".to_string(),
+                take: "1".to_string(),
+            }))
+        }
+
+        let json_map = output_html.json_map.clone();
+        let output_template = output_html.output_template.clone();
+        let Ok(html_template) = std::fs::read_to_string(&output_template) else { return Ok(()); };
+
+
+        paused.store(false, Ordering::SeqCst);
+
+        let mut handles = Vec::new();
+
+        let mut stream = get_iters(task_iters, env.clone());
+        while let Some((vals, cur_env)) = stream.next().await {
+            println!("iter: {:?}", vals);
+            if paused.load(Ordering::SeqCst) {
+                println!("paused");
+                return Ok(());
+            }
+
+
+            let folder = get_handlebars_safe_dir(&output_html.output, &cur_env)?;
+            std::fs::create_dir_all(Path::new(&folder))?;
+            let filename = sanitize(get_handlebars(&output_html.filename, &cur_env)?);
+            let p: PathBuf = Path::new(&folder).join(filename);
+            let save_path = p.to_string_lossy().to_string();
+            println!("{}", save_path);
+            let task = TaskHtml {
+                cur_env: cur_env.clone(),
+                html_template: html_template.clone(),
+                json_map: json_map.clone(),
+                save_path,
+            };
+
+            let _permit = semaphore.clone().acquire_owned().await.unwrap();
+
+            // // let template = html_template.clone();
+            //
+            // for (k, v) in json_map.iter() {
+            //     let Some(json_str) = cur_env.get(k) else { continue };
+            //     let Ok(vec_json) = serde_json::from_str::<Vec<Value>>(json_str) else { continue };
+            //     let mut s = "".to_string();
+            //     for json_val in vec_json {
+            //         s += "<div class=\"row\">";
+            //         for (sk, sv) in v.iter() {
+            //             let Some(vv) = get_json_val(&json_val, sv) else {continue};
+            //             s += &format!("<div class=\"{}\">{}</div>", sk, vv);
+            //         }
+            //         s += "</div>";
+            //     }
+            //     cur_env.insert(k.clone(), s);
+            // }
+            //
+            // let Ok(html_content) = get_handlebars(&template, &cur_env) else { continue ;};
+            // println!("{}", html_content);
+
+
+            let handle = tokio::task::spawn(async move {
+                if let Err(e) = run_task_html(task).await {
+                    eprintln!("Error: {:?}", e);
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+        
+        
+        
+        println!("End run_output_html");
+        Ok(())
+    }
+    
 }
+
 
 fn get_iters(
     task_iters: Vec<TaskIter>,
@@ -511,6 +625,43 @@ fn get_iter_vec(iter_vec: IterList) -> Pin<Box<dyn Stream<Item = ItemData> + Sen
             yield HashMap::from([(name.clone(), v.clone())]);
         }
     })
+}
+
+async fn run_task_html(mut task: TaskHtml) -> Result<()> {
+    let save_path = task.save_path.clone();
+    let tmp_path = format!("{}.tmp", &save_path);
+    let p = Path::new(&save_path);
+    let p_tmp = Path::new(tmp_path.as_str());
+    if p.exists() {
+        return Ok(());
+    }
+
+    if p_tmp.exists() {
+        let _ = std::fs::remove_file(p_tmp).map_err(|e| println!("{:?}", e));
+    }
+
+    let template = task.html_template;
+
+    for (k, v) in task.json_map.iter() {
+        let Some(json_str) = task.cur_env.get(k) else { continue };
+        let Ok(vec_json) = serde_json::from_str::<Vec<Value>>(json_str) else { continue };
+        let mut s = "".to_string();
+        for json_val in vec_json {
+            s += "<div class=\"row\">";
+            for (sk, sv) in v.iter() {
+                let Some(vv) = get_json_val(&json_val, sv) else {continue};
+                s += &format!("<div class=\"{}\">{}</div>", sk, vv);
+            }
+            s += "</div>";
+        }
+        task.cur_env.insert(k.clone(), s);
+    }
+
+    let html_content = get_handlebars(&template, &task.cur_env)?;
+    let mut file = std::fs::File::create(p_tmp)?;
+    file.write_all(html_content.as_bytes())?;
+    std::fs::rename(p_tmp, p)?;
+    Ok(())
 }
 
 async fn run_task(task: Task) -> Result<()> {

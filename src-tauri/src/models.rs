@@ -80,12 +80,35 @@ pub struct Step {
     pub concurrency_limit: usize,
 }
 
+#[skip_serializing_none]
+#[serde_as]
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
+pub struct OutputHtml {
+    pub name: String,
+    pub task_iters: Vec<TaskIter>,
+    pub filename: String,
+    pub json_map: HashMap<String, HashMap<String, String>>,
+    pub output: String,
+    pub output_template: String,
+    pub concurrency_limit: usize,
+}
+
+
+
 #[derive(Clone, Debug)]
 pub struct Task {
     pub client: Client,
     pub url: String,
     pub method: String,
     pub header: HeaderMap,
+    pub save_path: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct TaskHtml {
+    pub cur_env: HashMap<String, String>,
+    pub html_template: String,
+    pub json_map: HashMap<String, HashMap<String, String>>,
     pub save_path: String,
 }
 
@@ -96,6 +119,7 @@ pub struct Setting {
     pub header: HashMap<String, String>,
     pub steps: HashMap<String, Step>,
     pub edges: Vec<Edge>,
+    pub output_html: Option<OutputHtml>
 }
 
 pub struct StepHandle {

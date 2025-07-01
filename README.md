@@ -34,9 +34,10 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 ## crawler.json
 ```json
 {
+  "$schema": "./setting.schema.json",
   "env": {
     "CAFE_ID": "26989041",
-    "COOKIE": "xxxxx"
+    "COOKIE": "xxx"
   },
   "header": {
     "priority": "u=1, i",
@@ -196,8 +197,52 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 
 
   },
+  "output_html": {
+    "name": "output_html",
+    "task_iters": [
+      {
+        "GlobJsonPattern": {
+          "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+          "item_pattern": "$.result.menus[*]",
+          "env_pattern": {
+            "MENU_ID": "$.menuId",
+            "MENU_NAME": "$.name"
+          }
+        }
+      },
+      {
+        "GlobJsonPattern": {
+          "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+          "item_pattern": "$.result",
+          "env_pattern": {
+            "ARTICLE_ID": "$.articleId",
+            "SUBJECT": "$.article.subject",
+            "CONTENT_HTML": "$.article.contentHtml",
+            "COMMENTS": "$.comments.items",
+            "ATTACHES": "$.attaches"
+          }
+        }
+      }
+    ],
+    "json_map": {
+      "COMMENTS": {
+        "ID": "$.writer.id",
+        "NICK": "$.writer.nick",
+        "CONTENT": "$.content",
+        "UPDATE_DATE": "$.updateDate"
+      },
+      "ATTACHES": {
+        "NAME": "$.name"
+      }
+    },
+    "filename": "html_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.html",
+    "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}",
+    "output_template": "C:/sources/crawler_data/output_template.html",
+    "concurrency_limit": 10
+  },
   "edges": []
 }
+
 
 
 

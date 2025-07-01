@@ -26,6 +26,16 @@
       "items": {
         "$ref": "#/$defs/Edge"
       }
+    },
+    "output_html": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OutputHtml"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -306,6 +316,52 @@
       "required": [
         "a",
         "b"
+      ]
+    },
+    "OutputHtml": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "task_iters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskIter"
+          }
+        },
+        "filename": {
+          "type": "string"
+        },
+        "json_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "output": {
+          "type": "string"
+        },
+        "output_template": {
+          "type": "string"
+        },
+        "concurrency_limit": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "task_iters",
+        "filename",
+        "json_map",
+        "output",
+        "output_template",
+        "concurrency_limit"
       ]
     }
   }

@@ -47,6 +47,14 @@ async stopStep(stepName: string) : Promise<Result<null, ApiError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async runOutputHtml() : Promise<Result<null, ApiError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_output_html") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -68,8 +76,9 @@ export type IterList = { name: string; val: string[] }
 export type IterPattern = { name: string; glob_pattern: string; content_pattern: string }
 export type IterRange = { name: string; offset: string; take: string }
 export type IterRangePattern = { name: string; glob_pattern: string; offset: string; take: string }
+export type OutputHtml = { name: string; task_iters: TaskIter[]; filename: string; json_map: Partial<{ [key in string]: Partial<{ [key in string]: string }> }>; output: string; output_template: string; concurrency_limit: number }
 export type Request = { url: string; method: string; header: Partial<{ [key in string]: string }>; filename: string }
-export type Setting = { env: Partial<{ [key in string]: string }>; header: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }>; edges: Edge[] }
+export type Setting = { env: Partial<{ [key in string]: string }>; header: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }>; edges: Edge[]; output_html: OutputHtml | null }
 export type Step = { name: string; task_iters: TaskIter[]; req: Request; output: string; concurrency_limit: number }
 export type TaskIter = { Range: IterRange } | { Pattern: IterPattern } | { RangePattern: IterRangePattern } | { Vec: IterList } | { GlobJsonPattern: IterGlobJsonPattern } | { GlobJsonRangePattern: IterJsonRangePattern }
 export type TextContent = { path: string; mimetype: string; enc?: string | null; text?: string | null }

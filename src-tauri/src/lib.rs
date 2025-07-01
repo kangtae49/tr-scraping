@@ -77,6 +77,15 @@ async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Re
     Ok(())
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn run_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
+    println!("run_output_html");
+    let mut crawler = state.write().await;
+    crawler.run_output_html().await?;
+    Ok(())
+}
+
 // #[tauri::command]
 // fn open_file_dialog() {
 //     FileDialogBuilder::new()
@@ -98,7 +107,8 @@ pub fn run() {
         read_txt,
         load_crawler,
         run_step,
-        stop_step
+        stop_step,
+        run_output_html
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds

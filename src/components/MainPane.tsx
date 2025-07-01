@@ -72,6 +72,12 @@ function MainPane(): React.JSX.Element {
       .catch(e => console.error(e.message))
   }
 
+  const runOutputHtml = async (): Promise<void> => {
+    console.log("MainPane.runOutputHtml");
+    api.runOutputHtml().then(() => {})
+      .catch(e => console.error(e.message))
+  }
+
   const openSetting = async (): Promise<void> => {
     open({
       multiple: false,
@@ -120,6 +126,10 @@ function MainPane(): React.JSX.Element {
           }
         </div>
       )}
+      <div className="step">
+        <div className="btn" onClick={() => runOutputHtml()}><Icon icon={faCirclePlay} /></div>
+        <div className="label">Run output html</div>
+      </div>
     </div>
   )
 }
