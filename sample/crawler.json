@@ -2,7 +2,7 @@
     "$schema": "../setting.schema.json",
     "env": {
         "CAFE_ID": "26989041",
-        "COOKIE": "NAC=eFYLCYgtqPfHA; NNB=YRQ65FO3LCFWO; _ga=GA1.2.980631139.1746050452; _ga_6Z6DP60WFK=GS1.2.1746050460.1.1.1746050497.23.0.0; SRT30=1751448340; nid_inf=1701867489; NID_AUT=plpd+5NJ7v0zGajYFnPnn8Phb+HDJ36sJiKkM2LsMlDu/6IYVMVxl3zEfAGn5Zef; NACT=1; NID_SES=AAABj/SvgqoHYe2AhY1zvxmj7D7yYBsTW8gcRtUNCJWT3EEwXC76UyV1oPfPEjA1i5JXzS4RtlspapK04+SGzXgnbT9niUljtksvuo7oMipcrWx3UfeJHmqs5QCBkDIbtL92WocR+P4zss+N0oytcxRt3K7ItXxCHG1/EdhYhUhX7hoTBBwyErkr7+ChckznKCtunEsbRjc3Z0bLg8cFIV72LsHATOdEuvU9qEp7cfJZt8sQ50Trl9QIu/JY5GXACImzlQrmrk0nKNorZh7Dqxc3P2TK2lb3BxhUASh4ivObBuGiDlwWkjIJ3asyl2rrMvPCDlANc8THr6UsINaf7l5gYtVBrxLGYEFxgfmqBCd7Q+tDyH+Xwq3cFvnN4VzOMUpUjjU5A2BFh/a5cQaCh+Ei6SZ4xj8Ew9kMjLT0/4jMOXTVxqPuEeTCajFJV4yzyLHk9kPUBcWqAKeZVpuhLyOGo03MfkpKvVMhFFcFg4O9AYrr0JpT5hMlqAlVZuAxW7GEDD533hZSiDUUQ4kMoTfigZc=; BUC=lEJAhx-2pGmca-VWurfMUmXerJ5Aebkfm1GKYOfNB6o="
+        "COOKIE": "XXX"
     },
     "header": {
         "priority": "u=1, i",
