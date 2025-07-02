@@ -1,0 +1,210 @@
+{
+    "$schema": "../setting.schema.json",
+    "env": {
+        "CAFE_ID": "26989041",
+        "COOKIE": "NAC=eFYLCYgtqPfHA; NNB=YRQ65FO3LCFWO; _ga=GA1.2.980631139.1746050452; _ga_6Z6DP60WFK=GS1.2.1746050460.1.1.1746050497.23.0.0; NACT=1; SRT30=1751241287; SRT5=1751241287; nid_inf=1695612460; NID_AUT=Z0/1wqjuuJDvrS1Lqu5H/NPW/1/jcYvTLuGDt68hAII01kTCZN4JoQ3Bbf6D+8Q1; NID_SES=AAABkgSqWXKSEa25b9zru6Dmqn2nE7jGTqKiE74Erft3zOS+xDTLnp9CRaouIdDHZNpqCGiyOnzbXtyGCwi/wE9twniJ4TY1L7pUlZ9Q0XV4RRhoi7Lze0rO9FX7v4L6Lv211eXJcZHD/LPXZs4sAsdY8XGim3yuFAM5qoI9B5XRMyLlIkIU3wqdQ5YjgTOpSnrBEZZiuYCQh0aA5OiYyXn50nk1g6lYF4/PBfUTQQ6EuIox+q/Z/NPiu3oW3t/p8rid7fH6JVc/41sEFC7kgfx72ELxw4ESFatdGse8qw339nTHRLBZaIA7NNo/9OAVKWPYEYu8xBKdC4py2xzG9D2W+3bWgttyMTNiyj/LBwPNAPctibdNg0Y+DQj9CVlpmACI6jw6RXuLiYT0k8aE0xKtJ5Bfv/TBiXz0VByRPon8PWHNJE4GGfoqmGZfLsB917nG78Gwl/agkqgEZymta9pWhXAHW5WZ8yCYAECnyB8VlJJ/wFwEOpGje8hzTLqjDBbHH7tokRYVvTOY8QMemUmuprs9ysB0IdBJUaZPyKP/3kFV; BUC=FRi9PBKFKKgy-zCXlNADiemm8MezOHvn09rz0GVwypU="
+    },
+    "header": {
+        "priority": "u=1, i",
+        "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "x-cafe-product": "pc",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+        "Origin": "https://cafe.naver.com",
+        "Cookie": "{{{COOKIE}}}"
+    },
+    "steps": {
+        "step1": {
+            "name": "step1",
+            "task_iters": [],
+            "req": {
+                "method": "GET",
+                "url": "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{{CAFE_ID}}/menus",
+                "header": {
+                    "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
+                },
+                "filename": "menu_{{CAFE_ID}}.json"
+            },
+            "output": "C:/sources/crawler_data/step1",
+            "concurrency_limit": 10
+        },
+        "step2": {
+            "name": "step2",
+            "task_iters": [
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+                        "item_pattern": "$.result.menus[*]",
+                        "env_pattern": {
+                            "MENU_ID": "$.menuId"
+                        }
+                    }
+                }
+            ],
+            "req": {
+                "method": "GET",
+                "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page=1&pageSize=15&sortBy=TIME&viewType=L",
+                "header": {
+                    "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
+                },
+                "filename": "page_size_{{CAFE_ID}}_{{MENU_ID}}.json"
+            },
+            "output": "C:/sources/crawler_data/step2",
+            "concurrency_limit": 10
+        },
+        "step3": {
+            "name": "step3",
+            "task_iters": [
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+                        "item_pattern": "$.result.menus[*]",
+                        "env_pattern": {
+                            "MENU_ID": "$.menuId",
+                            "MENU_NAME": "$.name"
+                        }
+                    }
+                },
+                {
+                    "GlobJsonRangePattern": {
+                        "name": "PAGE_NO",
+                        "file_pattern": "C:/sources/crawler_data/step2/page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
+                        "offset_pattern": "1",
+                        "take_pattern": "$.result.pageInfo.lastNavigationPageNumber"
+                    }
+                }
+            ],
+            "req": {
+                "method": "GET",
+                "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page={{PAGE_NO}}&pageSize=15&sortBy=TIME&viewType=L",
+                "header": {
+                    "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
+                },
+                "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json"
+            },
+            "output": "C:/sources/crawler_data/step3",
+            "concurrency_limit": 10
+        },
+        "article": {
+            "name": "article",
+            "task_iters": [
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+                        "item_pattern": "$.result.menus[*]",
+                        "env_pattern": {
+                            "MENU_ID": "$.menuId",
+                            "MENU_NAME": "$.name"
+                        }
+                    }
+                },
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
+                        "item_pattern": "$.result.articleList[*]",
+                        "env_pattern": {
+                            "ARTICLE_ID": "$.item.articleId"
+                        }
+                    }
+                }
+            ],
+            "req": {
+                "method": "GET",
+                "url": "https://apis.naver.com/cafe-web/cafe-articleapi/v3/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?query=&menuId={{MENU_ID}}&useCafeId=true&requestFrom=A",
+                "header": {
+                    "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
+                },
+                "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.json"
+            },
+            "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+            "concurrency_limit": 10
+        },
+        "attachment": {
+            "name": "attachment",
+            "task_iters": [
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+                        "item_pattern": "$.result.menus[*]",
+                        "env_pattern": {
+                            "MENU_ID": "$.menuId",
+                            "MENU_NAME": "$.name"
+                        }
+                    }
+                },
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+                        "item_pattern": "$.result.attaches[*]",
+                        "env_pattern": {
+                            "URL": "$.url",
+                            "FILE_NAME": "$.name"
+                        }
+                    }
+                }
+            ],
+            "req": {
+                "method": "GET",
+                "url": "{{{URL}}}",
+                "header": {
+                    "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
+                },
+                "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}_attachment_{{FILE_NAME}}"
+            },
+            "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+            "concurrency_limit": 10
+        }
+
+
+    },
+    "output_html": {
+        "name": "output_html",
+        "task_iters": [
+            {
+                "GlobJsonPattern": {
+                    "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+                    "item_pattern": "$.result.menus[*]",
+                    "env_pattern": {
+                        "MENU_ID": "$.menuId",
+                        "MENU_NAME": "$.name"
+                    }
+                }
+            },
+            {
+                "GlobJsonPattern": {
+                    "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+                    "item_pattern": "$.result",
+                    "env_pattern": {
+                        "ARTICLE_ID": "$.articleId",
+                        "WRITE_DATE": "$.article.writeDate",
+                        "SUBJECT": "$.article.subject",
+                        "CONTENT_HTML": "$.article.contentHtml",
+                        "COMMENTS": "$.comments.items",
+                        "ATTACHES": "$.attaches"
+                    }
+                }
+            }
+        ],
+        "json_map": {
+            "COMMENTS": [
+                ["ID", "$.writer.id"],
+                ["NICK", "$.writer.nick"],
+                ["UPDATE_DATE", "$.updateDate"],
+                ["CONTENT", "$.content"]
+            ],
+            "ATTACHES": [
+                ["NAME", "$.name"]
+            ]
+        },
+        "filename": "html_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.html",
+        "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}",
+        "output_template": "C:/sources/tr-crawler/sample/output_template.html",
+        "concurrency_limit": 10
+    },
+    "edges": []
+}

@@ -1,0 +1,23 @@
+<style>
+    .attaches { display: flex; }
+    .comments { display: flex; flex-direction: column; width: 100%;}
+    .comments .row {display: flex; flex: 1; width: 100%; flex-wrap: wrap; padding: 0 0 0 10px;}
+    .comments .row .ID { padding: 0 5px 0 0; }
+    .comments .row .NICK { padding: 0 5px 0 0; }
+    .comments .row .UPDATE_DATE { padding: 0 5px 0 0; }
+    .comments .row .CONTENT { width: 100%;}
+
+</style>
+<div>
+    <div class="subject">{{SUBJECT}}</div>
+    <div class="write_date">{{WRITE_DATE}}</div>
+    <div class="content_html">{{{CONTENT_HTML}}}</div>
+    <div>attachments</div>
+    <div class="attaches">
+        {{{ATTACHES}}}
+    </div>
+    <div>comments</div>
+    <div class="comments">
+        {{{COMMENTS}}}
+    </div>
+</div>

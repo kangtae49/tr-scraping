@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use chardetng::EncodingDetector;
+use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use encoding_rs::Encoding;
 use glob::glob;
 use handlebars::Handlebars;
@@ -649,15 +650,28 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
         for json_val in vec_json {
             s += "<div class=\"row\">";
             for (sk, sv) in v.iter() {
-                let Some(vv) = get_json_val(&json_val, sv) else {continue};
+                let Some(mut vv) = get_json_val(&json_val, sv) else {continue};
+                if sk.to_uppercase().contains("DATE") {
+                    if let Ok(dt) = from_unixtime(vv.clone()) {
+                        vv = dt;
+                    }
+                }
                 s += &format!("<div class=\"{}\">{}</div>", sk, vv);
             }
             s += "</div>";
         }
         task.cur_env.insert(k.clone(), s);
     }
-
-    let html_content = get_handlebars(&template, &task.cur_env)?;
+    let mut task_env = task.cur_env.clone();
+    for (k, v) in task_env.iter_mut() {
+        if k.to_uppercase().contains("DATE") {
+            if let Ok(dt) = from_unixtime(v.clone()) {
+                *v = dt;
+            }
+        }
+    }
+    
+    let html_content = get_handlebars(&template, &task_env)?;
     let mut file = std::fs::File::create(p_tmp)?;
     file.write_all(html_content.as_bytes())?;
     std::fs::rename(p_tmp, p)?;
@@ -759,4 +773,16 @@ fn exist_node(dag: &Graph<String, ()>, edge: &String) -> bool {
 fn find_node(dag: &Graph<String, ()>, edge: &String) -> Option<petgraph::graph::NodeIndex> {
     dag.node_indices()
         .find(|&idx| dag.node_weight(idx).map_or(false, |w| w == edge))
+}
+
+
+fn from_unixtime(s: String) -> Result<String> {
+    let timestamp_ms: i64 = s.parse::<i64>()?;
+    let timestamp_sec = timestamp_ms / 1000;
+    let timestamp_nano = (timestamp_ms % 1000) * 1_000_000;
+
+    let Some(datetime_utc) = DateTime::<Utc>::from_timestamp(timestamp_sec, timestamp_nano as u32) else { return Ok(s) } ;
+
+    let datetime_local = datetime_utc.with_timezone(&Local);
+    Ok(datetime_local.format("%Y-%m-%d %H:%M:%S").to_string())
 }

@@ -87,7 +87,7 @@ pub struct OutputHtml {
     pub name: String,
     pub task_iters: Vec<TaskIter>,
     pub filename: String,
-    pub json_map: HashMap<String, HashMap<String, String>>,
+    pub json_map: HashMap<String, Vec<(String, String)>>,
     pub output: String,
     pub output_template: String,
     pub concurrency_limit: usize,
@@ -108,7 +108,7 @@ pub struct Task {
 pub struct TaskHtml {
     pub cur_env: HashMap<String, String>,
     pub html_template: String,
-    pub json_map: HashMap<String, HashMap<String, String>>,
+    pub json_map: HashMap<String, Vec<(String, String)>>,
     pub save_path: String,
 }
 
