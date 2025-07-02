@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use chardetng::EncodingDetector;
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Local, Utc};
 use encoding_rs::Encoding;
 use glob::glob;
 use handlebars::Handlebars;
@@ -634,7 +634,8 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
     let p = Path::new(&save_path);
     let p_tmp = Path::new(tmp_path.as_str());
     if p.exists() {
-        return Ok(());
+        // return Ok(());
+        let _ = std::fs::remove_file(p).map_err(|e| println!("{:?}", e));
     }
 
     if p_tmp.exists() {
@@ -652,7 +653,7 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
             for (sk, sv) in v.iter() {
                 let Some(mut vv) = get_json_val(&json_val, sv) else {continue};
                 if sk.to_uppercase().contains("DATE") {
-                    if let Ok(dt) = from_unixtime(vv.clone()) {
+                    if let Ok(dt) = from_unix_time(vv.clone()) {
                         vv = dt;
                     }
                 }
@@ -665,12 +666,12 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
     let mut task_env = task.cur_env.clone();
     for (k, v) in task_env.iter_mut() {
         if k.to_uppercase().contains("DATE") {
-            if let Ok(dt) = from_unixtime(v.clone()) {
+            if let Ok(dt) = from_unix_time(v.clone()) {
                 *v = dt;
             }
         }
     }
-    
+
     let html_content = get_handlebars(&template, &task_env)?;
     let mut file = std::fs::File::create(p_tmp)?;
     file.write_all(html_content.as_bytes())?;
@@ -776,7 +777,7 @@ fn find_node(dag: &Graph<String, ()>, edge: &String) -> Option<petgraph::graph::
 }
 
 
-fn from_unixtime(s: String) -> Result<String> {
+fn from_unix_time(s: String) -> Result<String> {
     let timestamp_ms: i64 = s.parse::<i64>()?;
     let timestamp_sec = timestamp_ms / 1000;
     let timestamp_nano = (timestamp_ms % 1000) * 1_000_000;

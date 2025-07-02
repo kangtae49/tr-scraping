@@ -2,7 +2,7 @@
     "$schema": "../setting.schema.json",
     "env": {
         "CAFE_ID": "26989041",
-        "COOKIE": "NAC=eFYLCYgtqPfHA; NNB=YRQ65FO3LCFWO; _ga=GA1.2.980631139.1746050452; _ga_6Z6DP60WFK=GS1.2.1746050460.1.1.1746050497.23.0.0; NACT=1; SRT30=1751241287; SRT5=1751241287; nid_inf=1695612460; NID_AUT=Z0/1wqjuuJDvrS1Lqu5H/NPW/1/jcYvTLuGDt68hAII01kTCZN4JoQ3Bbf6D+8Q1; NID_SES=AAABkgSqWXKSEa25b9zru6Dmqn2nE7jGTqKiE74Erft3zOS+xDTLnp9CRaouIdDHZNpqCGiyOnzbXtyGCwi/wE9twniJ4TY1L7pUlZ9Q0XV4RRhoi7Lze0rO9FX7v4L6Lv211eXJcZHD/LPXZs4sAsdY8XGim3yuFAM5qoI9B5XRMyLlIkIU3wqdQ5YjgTOpSnrBEZZiuYCQh0aA5OiYyXn50nk1g6lYF4/PBfUTQQ6EuIox+q/Z/NPiu3oW3t/p8rid7fH6JVc/41sEFC7kgfx72ELxw4ESFatdGse8qw339nTHRLBZaIA7NNo/9OAVKWPYEYu8xBKdC4py2xzG9D2W+3bWgttyMTNiyj/LBwPNAPctibdNg0Y+DQj9CVlpmACI6jw6RXuLiYT0k8aE0xKtJ5Bfv/TBiXz0VByRPon8PWHNJE4GGfoqmGZfLsB917nG78Gwl/agkqgEZymta9pWhXAHW5WZ8yCYAECnyB8VlJJ/wFwEOpGje8hzTLqjDBbHH7tokRYVvTOY8QMemUmuprs9ysB0IdBJUaZPyKP/3kFV; BUC=FRi9PBKFKKgy-zCXlNADiemm8MezOHvn09rz0GVwypU="
+        "COOKIE": "NAC=eFYLCYgtqPfHA; NNB=YRQ65FO3LCFWO; _ga=GA1.2.980631139.1746050452; _ga_6Z6DP60WFK=GS1.2.1746050460.1.1.1746050497.23.0.0; SRT30=1751448340; nid_inf=1701867489; NID_AUT=plpd+5NJ7v0zGajYFnPnn8Phb+HDJ36sJiKkM2LsMlDu/6IYVMVxl3zEfAGn5Zef; NACT=1; NID_SES=AAABj/SvgqoHYe2AhY1zvxmj7D7yYBsTW8gcRtUNCJWT3EEwXC76UyV1oPfPEjA1i5JXzS4RtlspapK04+SGzXgnbT9niUljtksvuo7oMipcrWx3UfeJHmqs5QCBkDIbtL92WocR+P4zss+N0oytcxRt3K7ItXxCHG1/EdhYhUhX7hoTBBwyErkr7+ChckznKCtunEsbRjc3Z0bLg8cFIV72LsHATOdEuvU9qEp7cfJZt8sQ50Trl9QIu/JY5GXACImzlQrmrk0nKNorZh7Dqxc3P2TK2lb3BxhUASh4ivObBuGiDlwWkjIJ3asyl2rrMvPCDlANc8THr6UsINaf7l5gYtVBrxLGYEFxgfmqBCd7Q+tDyH+Xwq3cFvnN4VzOMUpUjjU5A2BFh/a5cQaCh+Ei6SZ4xj8Ew9kMjLT0/4jMOXTVxqPuEeTCajFJV4yzyLHk9kPUBcWqAKeZVpuhLyOGo03MfkpKvVMhFFcFg4O9AYrr0JpT5hMlqAlVZuAxW7GEDD533hZSiDUUQ4kMoTfigZc=; BUC=lEJAhx-2pGmca-VWurfMUmXerJ5Aebkfm1GKYOfNB6o="
     },
     "header": {
         "priority": "u=1, i",
@@ -119,7 +119,7 @@
                 "header": {
                     "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
                 },
-                "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.json"
+                "filename": "{{MENU_ID}}_{{ARTICLE_ID}}.json"
             },
             "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
             "concurrency_limit": 10
@@ -139,7 +139,16 @@
                 },
                 {
                     "GlobJsonPattern": {
-                        "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+                        "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_*.json",
+                        "item_pattern": "$.result",
+                        "env_pattern": {
+                            "ARTICLE_ID": "$.articleId"
+                        }
+                    }
+                },
+                {
+                    "GlobJsonPattern": {
+                        "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}.json",
                         "item_pattern": "$.result.attaches[*]",
                         "env_pattern": {
                             "URL": "$.url",
@@ -154,9 +163,9 @@
                 "header": {
                     "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
                 },
-                "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}_attachment_{{FILE_NAME}}"
+                "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{FILE_NAME}}"
             },
-            "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+            "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}",
             "concurrency_limit": 10
         }
 
@@ -201,7 +210,7 @@
                 ["NAME", "$.name"]
             ]
         },
-        "filename": "html_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.html",
+        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.html",
         "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}",
         "output_template": "C:/sources/tr-crawler/sample/output_template.html",
         "concurrency_limit": 10
