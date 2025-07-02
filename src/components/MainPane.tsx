@@ -77,6 +77,11 @@ function MainPane(): React.JSX.Element {
     api.runOutputHtml().then(() => {})
       .catch(e => console.error(e.message))
   }
+  const stopOutputHtml = async (): Promise<void> => {
+    console.log("MainPane.stopOutputHtml");
+    api.stopOutputHtml().then(() => {})
+      .catch(e => console.error(e.message))
+  }
 
   const openSetting = async (): Promise<void> => {
     open({
@@ -116,7 +121,7 @@ function MainPane(): React.JSX.Element {
           {
             Object.entries(setting.steps).map(([key, _step])  => {
               return (
-                <div className="step">
+                <div className="step" key={key}>
                   <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
                   <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCirclePause} /></div>
                   <div className="label">Run {key}</div>
@@ -128,6 +133,7 @@ function MainPane(): React.JSX.Element {
       )}
       <div className="step">
         <div className="btn" onClick={() => runOutputHtml()}><Icon icon={faCirclePlay} /></div>
+        <div className="btn" onClick={() => stopOutputHtml()}><Icon icon={faCirclePause} /></div>
         <div className="label">Run output html</div>
       </div>
     </div>

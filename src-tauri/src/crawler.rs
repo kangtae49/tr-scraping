@@ -335,7 +335,6 @@ impl Crawler {
                 return Ok(());
             }
 
-
             let folder = get_handlebars_safe_dir(&output_html.output, &cur_env)?;
             std::fs::create_dir_all(Path::new(&folder))?;
             let filename = sanitize(get_handlebars(&output_html.filename, &cur_env)?);
@@ -350,27 +349,6 @@ impl Crawler {
             };
 
             let _permit = semaphore.clone().acquire_owned().await.unwrap();
-
-            // // let template = html_template.clone();
-            //
-            // for (k, v) in json_map.iter() {
-            //     let Some(json_str) = cur_env.get(k) else { continue };
-            //     let Ok(vec_json) = serde_json::from_str::<Vec<Value>>(json_str) else { continue };
-            //     let mut s = "".to_string();
-            //     for json_val in vec_json {
-            //         s += "<div class=\"row\">";
-            //         for (sk, sv) in v.iter() {
-            //             let Some(vv) = get_json_val(&json_val, sv) else {continue};
-            //             s += &format!("<div class=\"{}\">{}</div>", sk, vv);
-            //         }
-            //         s += "</div>";
-            //     }
-            //     cur_env.insert(k.clone(), s);
-            // }
-            //
-            // let Ok(html_content) = get_handlebars(&template, &cur_env) else { continue ;};
-            // println!("{}", html_content);
-
 
             let handle = tokio::task::spawn(async move {
                 if let Err(e) = run_task_html(task).await {

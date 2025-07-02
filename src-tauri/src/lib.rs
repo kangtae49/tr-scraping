@@ -41,6 +41,19 @@ async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) ->
 #[allow(dead_code)]
 #[tauri::command]
 #[specta::specta]
+async fn stop_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
+    println!("stop_output_html");
+    let crawler = state.read().await;
+    let output_html_handle_lock = crawler.output_html_handle.write().await;
+    let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
+    output_html_handle.paused.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+
+#[allow(dead_code)]
+#[tauri::command]
+#[specta::specta]
 async fn resume(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
     println!("resume");
     let crawler = state.read().await;
@@ -108,7 +121,8 @@ pub fn run() {
         load_crawler,
         run_step,
         stop_step,
-        run_output_html
+        run_output_html,
+        stop_output_html
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
