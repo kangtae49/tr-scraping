@@ -38,17 +38,16 @@ async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) ->
     Ok(())
 }
 
-#[allow(dead_code)]
-#[tauri::command]
-#[specta::specta]
-async fn stop_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
-    println!("stop_output_html");
-    let crawler = state.read().await;
-    let output_html_handle_lock = crawler.output_html_handle.write().await;
-    let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
-    output_html_handle.paused.store(true, Ordering::SeqCst);
-    Ok(())
-}
+// #[tauri::command]
+// #[specta::specta]
+// async fn stop_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
+//     println!("stop_output_html");
+//     let crawler = state.read().await;
+//     let output_html_handle_lock = crawler.output_html_handle.write().await;
+//     let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
+//     output_html_handle.paused.store(true, Ordering::SeqCst);
+//     Ok(())
+// }
 
 
 #[allow(dead_code)]
@@ -90,27 +89,15 @@ async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Re
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-async fn run_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
-    println!("run_output_html");
-    let mut crawler = state.write().await;
-    crawler.run_output_html().await?;
-    Ok(())
-}
-
 // #[tauri::command]
-// fn open_file_dialog() {
-//     FileDialogBuilder::new()
-//         .add_filter("Text", &["txt", "md"])
-//         .pick_file(|file_path| {
-//             if let Some(path) = file_path {
-//                 println!("선택된 파일 경로: {:?}", path);
-//             } else {
-//                 println!("파일 선택이 취소되었습니다.");
-//             }
-//         });
+// #[specta::specta]
+// async fn run_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
+//     println!("run_output_html");
+//     let mut crawler = state.write().await;
+//     crawler.run_output_html().await?;
+//     Ok(())
 // }
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -121,8 +108,8 @@ pub fn run() {
         load_crawler,
         run_step,
         stop_step,
-        run_output_html,
-        stop_output_html
+        // run_output_html,
+        // stop_output_html
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -137,7 +124,7 @@ pub fn run() {
         let schema = schemars::schema_for!(Setting);
         let json_schema = serde_json::to_string_pretty(&schema).unwrap();
         let _ =
-            std::fs::write("../setting.schema.json", json_schema).map_err(|e| println!("{:?}", e));
+            std::fs::write("../sample/setting.schema.json", json_schema).map_err(|e| println!("{:?}", e));
     }
 
     tauri::Builder::default()

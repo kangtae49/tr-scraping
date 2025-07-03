@@ -25,7 +25,7 @@ use tokio::sync::{Notify, RwLock};
 use tokio_stream::{Stream, StreamExt};
 
 
-use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, OutputHtml, Setting, Step, StepHandle, Task, TaskHtml, TaskIter, TextContent};
+use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob};
 
 type ItemData = HashMap<String, String>;
 
@@ -40,8 +40,8 @@ pub struct Crawler {
     pub steps: Shared<HashMap<String, Step>>,
     pub step_handles: Shared<HashMap<String, StepHandle>>,
     pub dag: Shared<Graph<String, ()>>,
-    pub output_html: Shared<Option<OutputHtml>>,
-    pub output_html_handle: Shared<Option<StepHandle>>,
+    // pub output_html: Shared<Option<OutputHtml>>,
+    // pub output_html_handle: Shared<Option<StepHandle>>,
 }
 
 impl Crawler {
@@ -53,8 +53,8 @@ impl Crawler {
             steps: Arc::new(RwLock::new(HashMap::new())),
             step_handles: Arc::new(RwLock::new(HashMap::new())),
             dag: Arc::new(RwLock::new(Graph::<String, ()>::new())),
-            output_html: Arc::new(RwLock::new(None)),
-            output_html_handle: Arc::new(RwLock::new(None)),
+            // output_html: Arc::new(RwLock::new(None)),
+            // output_html_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -176,22 +176,11 @@ impl Crawler {
             }
         }
 
-        if let Some(output_html) = setting.output_html.clone() {
-            let output_html_handle = StepHandle {
-                name: "output_html".to_string(),
-                notifier: Arc::new(Notify::new()),
-                paused: Arc::new(AtomicBool::new(false)),
-                semaphore: Arc::new(Semaphore::new(output_html.concurrency_limit)),
-            };
-            self.assign(&self.output_html_handle, Some(output_html_handle)).await;
-        }
-
         self.assign(&self.env, setting.env).await;
         self.assign(&self.header, setting.header).await;
         self.assign(&self.steps, setting.steps).await;
         self.assign(&self.step_handles, step_handles).await;
         self.assign(&self.dag, dag).await;
-        self.assign(&self.output_html, setting.output_html).await;
 
         Ok(())
     }
@@ -206,7 +195,7 @@ impl Crawler {
         let step = steps
             .get(&step_name)
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
-        let req = step.req.clone();
+        let mut job = step.job.clone();
         let env_lock = env_arc.read().await;
         let env = env_lock.clone();
         let header_lock = header_arc.read().await;
@@ -228,6 +217,14 @@ impl Crawler {
                 take: "1".to_string(),
             }))
         }
+        match &mut job {
+            Job::HttpJob(_http_job) => {}
+            Job::HtmlJob(html_job) => {
+                let Ok(html_template) = std::fs::read_to_string(&html_job.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
+                html_job.output_template = Some(html_template);
+            }
+        }
+
 
         paused.store(false, Ordering::SeqCst);
 
@@ -241,40 +238,8 @@ impl Crawler {
                 return Ok(());
             }
 
-            let client = self.client.clone();
-
-            let url = get_handlebars(&req.url, &cur_env)?;
-
-            let method = req.method.clone();
-
-            let mut header = HeaderMap::new();
-            for (k, v) in g_header.iter() {
-                let nm = HeaderName::from_str(k.as_str())?;
-                let new_v = get_handlebars(v, &cur_env)?;
-                let val = HeaderValue::from_str(&new_v)?;
-                header.insert(nm, val);
-            }
-
-            for (k, v) in req.header.iter() {
-                let nm = HeaderName::from_str(k.as_str())?;
-                let new_v = get_handlebars(v, &cur_env)?;
-                let val = HeaderValue::from_str(&new_v)?;
-                header.insert(nm, val);
-            }
-            let folder = get_handlebars_safe_dir(&step.output, &cur_env)?;
-            std::fs::create_dir_all(Path::new(&folder))?;
-            let filename = sanitize(get_handlebars(&req.filename, &cur_env)?);
-            let p: PathBuf = Path::new(&folder).join(filename);
-            let save_path = p.to_string_lossy().to_string();
-
-            let task = Task {
-                client,
-                url,
-                method,
-                header,
-                save_path,
-            };
-
+            let task = self.to_task(job.clone(), cur_env, g_header.clone()).await?;
+            println!("task: {:?}", task);
             let _permit = semaphore.clone().acquire_owned().await.unwrap();
             let handle = tokio::task::spawn(async move {
                 if let Err(e) = run_task(task).await {
@@ -292,83 +257,76 @@ impl Crawler {
         Ok(())
     }
 
-    pub async fn run_output_html(&mut self) -> Result<()> {
-        println!("Start run_output_html");
-        let env_arc = Arc::clone(&self.env);
-        let env_lock = env_arc.read().await;
-        let env = env_lock.clone();
-
-        let output_html_arc = self.output_html.clone();
-        let output_html_lock = output_html_arc.read().await;
-        let Some(output_html) = output_html_lock.clone() else { return Ok(()) };
-
-        let output_html_handle_arc = self.output_html_handle.clone();
-        let output_html_handle_lock = output_html_handle_arc.read().await;
-        let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
-        
-        let semaphore = output_html_handle.semaphore.clone();
-        let paused = output_html_handle.paused.clone();
-
-        let mut task_iters = output_html.task_iters.clone();
-        if task_iters.is_empty() {
-            task_iters.push(TaskIter::Range(IterRange {
-                name: "IDX".to_string(),
-                offset: "0".to_string(),
-                take: "1".to_string(),
-            }))
+    pub async fn to_task(&self, job: Job, cur_env: HashMap<String, String>, g_header: HashMap<String, String>) -> Result<Task> {
+        match job {
+            Job::HttpJob(http_job) => {self.to_http_task(http_job, cur_env, g_header).await},
+            Job::HtmlJob(html_job) => {self.to_html_task(html_job, cur_env).await},
         }
-
-        let json_map = output_html.json_map.clone();
-        let output_template = output_html.output_template.clone();
-        let Ok(html_template) = std::fs::read_to_string(&output_template) else { return Ok(()); };
-
-
-        paused.store(false, Ordering::SeqCst);
-
-        let mut handles = Vec::new();
-
-        let mut stream = get_iters(task_iters, env.clone());
-        while let Some((vals, cur_env)) = stream.next().await {
-            println!("iter: {:?}", vals);
-            if paused.load(Ordering::SeqCst) {
-                println!("paused");
-                return Ok(());
-            }
-
-            let folder = get_handlebars_safe_dir(&output_html.output, &cur_env)?;
-            std::fs::create_dir_all(Path::new(&folder))?;
-            let filename = sanitize(get_handlebars(&output_html.filename, &cur_env)?);
-            let p: PathBuf = Path::new(&folder).join(filename);
-            let save_path = p.to_string_lossy().to_string();
-            println!("{}", save_path);
-            let task = TaskHtml {
-                cur_env: cur_env.clone(),
-                html_template: html_template.clone(),
-                json_map: json_map.clone(),
-                save_path,
-            };
-
-            let _permit = semaphore.clone().acquire_owned().await.unwrap();
-
-            let handle = tokio::task::spawn(async move {
-                if let Err(e) = run_task_html(task).await {
-                    eprintln!("Error: {:?}", e);
-                }
-            });
-
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.await.unwrap();
-        }
-        
-        
-        
-        println!("End run_output_html");
-        Ok(())
     }
-    
+
+    pub async fn to_http_task(&self, http_job: HttpJob, cur_env: HashMap<String, String>, g_header: HashMap<String, String>) -> Result<Task> {
+
+        let client = self.client.clone();
+
+        let url = get_handlebars(&http_job.url, &cur_env)?;
+
+        let method = http_job.method.clone();
+
+        let mut header = HeaderMap::new();
+        for (k, v) in g_header.iter() {
+            let nm = HeaderName::from_str(k.as_str())?;
+            let new_v = get_handlebars(v, &cur_env)?;
+            let val = HeaderValue::from_str(&new_v)?;
+            header.insert(nm, val);
+        }
+
+        for (k, v) in http_job.header.iter() {
+            let nm = HeaderName::from_str(k.as_str())?;
+            let new_v = get_handlebars(v, &cur_env)?;
+            let val = HeaderValue::from_str(&new_v)?;
+            header.insert(nm, val);
+        }
+        let folder = get_handlebars_safe_dir(&http_job.output, &cur_env)?;
+        let p_folder = Path::new(&folder);
+        if !p_folder.exists() {
+            std::fs::create_dir_all(Path::new(&folder))?;
+        }
+        let filename = sanitize(get_handlebars(&http_job.filename, &cur_env)?);
+        let p: PathBuf = Path::new(&folder).join(filename);
+        let save_path = p.to_string_lossy().to_string();
+
+        Ok(Task::HttpTask(HttpTask {
+            client,
+            url,
+            method,
+            header,
+            save_path,
+        }))
+    }
+
+    pub async fn to_html_task(&self, html_job: HtmlJob, cur_env: HashMap<String, String>) -> Result<Task> {
+        println!("to_html_task: {:?}", html_job);
+        let Some(output_template) = html_job.output_template.clone() else { return Err(ApiError::CrawlerError("no output template".to_string())); };
+
+        println!("output_template: {}", output_template);
+
+        let folder = get_handlebars_safe_dir(&html_job.output, &cur_env)?;
+        let p_folder = Path::new(&folder);
+        if !p_folder.exists() {
+            std::fs::create_dir_all(Path::new(&folder))?;
+        }
+        let filename = sanitize(get_handlebars(&html_job.filename, &cur_env)?);
+        let p: PathBuf = Path::new(&folder).join(filename);
+        let save_path = p.to_string_lossy().to_string();
+        println!("{}", save_path);
+        Ok(Task::HtmlTask(HtmlTask {
+            cur_env: cur_env.clone(),
+            html_template: output_template.clone(),
+            json_map: html_job.json_map.clone(),
+            save_path,
+        }))
+    }
+
 }
 
 
@@ -606,7 +564,14 @@ fn get_iter_vec(iter_vec: IterList) -> Pin<Box<dyn Stream<Item = ItemData> + Sen
     })
 }
 
-async fn run_task_html(mut task: TaskHtml) -> Result<()> {
+async fn run_task(task: Task) -> Result<()> {
+    match task {
+        Task::HttpTask(http_task) => {run_task_http(http_task).await}
+        Task::HtmlTask(html_task) => {run_task_html(html_task).await}
+    }
+}
+
+async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
     let p = Path::new(&save_path);
@@ -620,7 +585,7 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
         let _ = std::fs::remove_file(p_tmp).map_err(|e| println!("{:?}", e));
     }
 
-    let template = task.html_template;
+    let template = task.html_template.clone();
 
     for (k, v) in task.json_map.iter() {
         let Some(json_str) = task.cur_env.get(k) else { continue };
@@ -657,7 +622,7 @@ async fn run_task_html(mut task: TaskHtml) -> Result<()> {
     Ok(())
 }
 
-async fn run_task(task: Task) -> Result<()> {
+async fn run_task_http(task: HttpTask) -> Result<()> {
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
     let p = Path::new(&save_path);

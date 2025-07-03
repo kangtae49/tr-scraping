@@ -32,9 +32,10 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 ```
 
 ## crawler.json
+
 ```json
 {
-  "$schema": "./setting.schema.json",
+  "$schema": "sample/setting.schema.json",
   "env": {
     "CAFE_ID": "26989041",
     "COOKIE": "xxx"
@@ -194,8 +195,6 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
       "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
       "concurrency_limit": 10
     }
-
-
   },
   "output_html": {
     "name": "output_html",

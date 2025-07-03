@@ -57,11 +57,8 @@
             "$ref": "#/$defs/TaskIter"
           }
         },
-        "req": {
-          "$ref": "#/$defs/Request"
-        },
-        "output": {
-          "type": "string"
+        "job": {
+          "$ref": "#/$defs/Job"
         },
         "concurrency_limit": {
           "type": "integer",
@@ -72,8 +69,7 @@
       "required": [
         "name",
         "task_iters",
-        "req",
-        "output",
+        "job",
         "concurrency_limit"
       ]
     },
@@ -277,7 +273,35 @@
         "take_pattern"
       ]
     },
-    "Request": {
+    "Job": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "HttpJob": {
+              "$ref": "#/$defs/HttpJob"
+            }
+          },
+          "required": [
+            "HttpJob"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "HtmlJob": {
+              "$ref": "#/$defs/HtmlJob"
+            }
+          },
+          "required": [
+            "HtmlJob"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "HttpJob": {
       "type": "object",
       "properties": {
         "url": {
@@ -294,13 +318,62 @@
         },
         "filename": {
           "type": "string"
+        },
+        "output": {
+          "type": "string"
         }
       },
       "required": [
         "url",
         "method",
         "header",
-        "filename"
+        "filename",
+        "output"
+      ]
+    },
+    "HtmlJob": {
+      "type": "object",
+      "properties": {
+        "json_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        },
+        "output_template_file": {
+          "type": "string"
+        },
+        "output_template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filename": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "json_map",
+        "output_template_file",
+        "filename",
+        "output"
       ]
     },
     "Edge": {
@@ -330,32 +403,10 @@
             "$ref": "#/$defs/TaskIter"
           }
         },
-        "filename": {
-          "type": "string"
-        },
-        "json_map": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "string"
-                }
-              ],
-              "minItems": 2,
-              "maxItems": 2
-            }
-          }
+        "html": {
+          "$ref": "#/$defs/HtmlJob"
         },
         "output": {
-          "type": "string"
-        },
-        "output_template": {
           "type": "string"
         },
         "concurrency_limit": {
@@ -367,10 +418,8 @@
       "required": [
         "name",
         "task_iters",
-        "filename",
-        "json_map",
+        "html",
         "output",
-        "output_template",
         "concurrency_limit"
       ]
     }

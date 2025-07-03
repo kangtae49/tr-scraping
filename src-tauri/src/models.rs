@@ -64,19 +64,34 @@ pub struct IterList {
 }
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub struct Request {
+pub enum Job {
+    HttpJob(HttpJob),
+    HtmlJob(HtmlJob)
+}
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
+pub struct HttpJob {
     pub url: String,
     pub method: String,
     pub header: HashMap<String, String>,
     pub filename: String,
+    pub output: String,
 }
+
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
+pub struct HtmlJob {
+    pub json_map: HashMap<String, Vec<(String, String)>>,
+    pub output_template_file: String,
+    pub output_template: Option<String>,
+    pub filename: String,
+    pub output: String,
+}
+
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Step {
     pub name: String,
     pub task_iters: Vec<TaskIter>,
-    pub req: Request,
-    pub output: String,
+    pub job: Job,
     pub concurrency_limit: usize,
 }
 
@@ -86,17 +101,19 @@ pub struct Step {
 pub struct OutputHtml {
     pub name: String,
     pub task_iters: Vec<TaskIter>,
-    pub filename: String,
-    pub json_map: HashMap<String, Vec<(String, String)>>,
+    pub html: HtmlJob,
     pub output: String,
-    pub output_template: String,
     pub concurrency_limit: usize,
 }
 
-
+#[derive(Clone, Debug)]
+pub enum Task {
+    HttpTask(HttpTask),
+    HtmlTask(HtmlTask)
+}
 
 #[derive(Clone, Debug)]
-pub struct Task {
+pub struct HttpTask {
     pub client: Client,
     pub url: String,
     pub method: String,
@@ -105,7 +122,7 @@ pub struct Task {
 }
 
 #[derive(Clone, Debug)]
-pub struct TaskHtml {
+pub struct HtmlTask {
     pub cur_env: HashMap<String, String>,
     pub html_template: String,
     pub json_map: HashMap<String, Vec<(String, String)>>,
