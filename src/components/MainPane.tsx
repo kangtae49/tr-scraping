@@ -5,48 +5,20 @@ import {TextContent, Step, Edge, Setting} from "@/bindings.ts";
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome'
 import { faCirclePlay, faCirclePause, faFolder, faArrowRotateRight } from '@fortawesome/free-solid-svg-icons'
 import { open } from '@tauri-apps/plugin-dialog';
+import { useSettingPathStore } from "@store/settingPathStore.ts";
+import SettingView from "@components/SettingView.tsx";
 
 function MainPane(): React.JSX.Element {
   let [setting, setSetting] = useState<Setting | undefined>(undefined);
-  let [settingPath, setSettingPath] = useState<string>("");
+  const settingPath = useSettingPathStore((state) => state.settingPath);
+  const setSettingPath = useSettingPathStore((state) => state.setSettingPath);
 
-  /*
-  const loadJson = async (): Promise<void> => {
-    api.getArgPath().then((path) => {
-      if (path){
-        console.info('path', path);
-        api.readTxt(path).then((textContent) => {
-          if (textContent.text) {
-            // console.log(textContent.text);
-            let setting = JSON.parse(textContent.text) as Setting;
-            setSetting(setting);
-            setSettingPath(path);
-            // console.log(setting);
-            // let env = setting.env;
-            // let steps = setting.steps;
-            // let edges: Edge[] = []
-            api.loadCrawler(setting)
-              .then(() => {
-                console.info('loadCrawler');
-                // runStep("step1").then(()=> {
-                //   console.info('step0 ok');
-                // })
-              })
-              .catch((reason) => {
-                console.error(reason);
-              })
-          }
-        });
-      }
-    })
-  }
-   */
   const loadJson = async (): Promise<void> => {
     if (settingPath) {
       api.readTxt(settingPath).then((textContent) => {
         if (textContent.text) {
           // console.log(textContent.text);
-          let setting = JSON.parse(textContent.text) as Setting;
+          let setting = JSON.parse(textContent.text);
           api.loadCrawler(setting)
             .then(() => {
               setSetting(setting);
@@ -72,16 +44,6 @@ function MainPane(): React.JSX.Element {
       .catch(e => console.error(e.message))
   }
 
-  // const runOutputHtml = async (): Promise<void> => {
-  //   console.log("MainPane.runOutputHtml");
-  //   api.runOutputHtml().then(() => {})
-  //     .catch(e => console.error(e.message))
-  // }
-  // const stopOutputHtml = async (): Promise<void> => {
-  //   console.log("MainPane.stopOutputHtml");
-  //   api.stopOutputHtml().then(() => {})
-  //     .catch(e => console.error(e.message))
-  // }
 
   const openSetting = async (): Promise<void> => {
     open({
@@ -110,32 +72,34 @@ function MainPane(): React.JSX.Element {
 
   return (
     <div className="main-pane">
-      <h2>Crawler</h2>
-      <div className="load">
-        <div className="btn" onClick={() => openSetting()}><Icon icon={faFolder} /></div>
-        <div className="btn" onClick={() => loadJson()}><Icon icon={faArrowRotateRight} /></div>
-        <div className="label">LoadJson - {settingPath}</div>
-      </div>
-      {setting && (
+      <div className="top">
         <div>
-          {
-            Object.entries(setting.steps).map(([key, _step])  => {
-              return (
-                <div className="step" key={key}>
-                  <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
-                  <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCirclePause} /></div>
-                  <div className="label">Run {key}</div>
-                </div>
-              )
-            })
-          }
+          <h2>Crawler</h2>
         </div>
-      )}
-      {/*<div className="step">*/}
-      {/*  <div className="btn" onClick={() => runOutputHtml()}><Icon icon={faCirclePlay} /></div>*/}
-      {/*  <div className="btn" onClick={() => stopOutputHtml()}><Icon icon={faCirclePause} /></div>*/}
-      {/*  <div className="label">Run output html</div>*/}
-      {/*</div>*/}
+        <div className="load">
+          <div className="btn" onClick={() => openSetting()}><Icon icon={faFolder} /></div>
+          <div className="btn" onClick={() => loadJson()}><Icon icon={faArrowRotateRight} /></div>
+          <div className="label">LoadJson - {settingPath}</div>
+        </div>
+        {setting && (
+          <div className="steps">
+            {
+              Object.entries(setting.steps).map(([key, _step])  => {
+                return (
+                  <div className="step" key={key}>
+                    <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
+                    <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCirclePause} /></div>
+                    <div className="label">Run {key}</div>
+                  </div>
+                )
+              })
+            }
+          </div>
+        )}
+      </div>
+      <div className="editor">
+        <SettingView />
+      </div>
     </div>
   )
 }

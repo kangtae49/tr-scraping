@@ -47,6 +47,14 @@ async stopStep(stepName: string) : Promise<Result<null, ApiError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async saveSetting(filePath: string, txt: string) : Promise<Result<null, ApiError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_setting", { filePath, txt }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

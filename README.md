@@ -31,14 +31,18 @@ For Android development, run:
 pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 ```
 
+```sh
+pnpm add monaco-editor
+```
+
 ## crawler.json
 
 ```json
 {
-  "$schema": "sample/setting.schema.json",
+  "$schema": "./setting.schema.json",
   "env": {
     "CAFE_ID": "26989041",
-    "COOKIE": "xxx"
+    "COOKIE": "XXX"
   },
   "header": {
     "priority": "u=1, i",
@@ -58,15 +62,15 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
     "step1": {
       "name": "step1",
       "task_iters": [],
-      "req": {
+      "job": {"HttpJob": {
         "method": "GET",
         "url": "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{{CAFE_ID}}/menus",
         "header": {
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
-        "filename": "menu_{{CAFE_ID}}.json"
-      },
-      "output": "C:/sources/crawler_data/step1",
+        "filename": "menu_{{CAFE_ID}}.json",
+        "output": "C:/sources/crawler_data/step1"
+      }},
       "concurrency_limit": 10
     },
     "step2": {
@@ -82,15 +86,15 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
           }
         }
       ],
-      "req": {
+      "job": { "HttpJob": {
         "method": "GET",
         "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page=1&pageSize=15&sortBy=TIME&viewType=L",
         "header": {
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
-        "filename": "page_size_{{CAFE_ID}}_{{MENU_ID}}.json"
-      },
-      "output": "C:/sources/crawler_data/step2",
+        "filename": "page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
+        "output": "C:/sources/crawler_data/step2"
+      }},
       "concurrency_limit": 10
     },
     "step3": {
@@ -115,15 +119,15 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
           }
         }
       ],
-      "req": {
+      "job": {"HttpJob": {
         "method": "GET",
         "url": "https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{{CAFE_ID}}/menus/{{MENU_ID}}/articles?page={{PAGE_NO}}&pageSize=15&sortBy=TIME&viewType=L",
         "header": {
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
-        "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json"
-      },
-      "output": "C:/sources/crawler_data/step3",
+        "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json",
+        "output": "C:/sources/crawler_data/step3"
+      }},
       "concurrency_limit": 10
     },
     "article": {
@@ -149,15 +153,15 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
           }
         }
       ],
-      "req": {
+      "job": {"HttpJob": {
         "method": "GET",
         "url": "https://apis.naver.com/cafe-web/cafe-articleapi/v3/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?query=&menuId={{MENU_ID}}&useCafeId=true&requestFrom=A",
         "header": {
           "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
         },
-        "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.json"
-      },
-      "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}.json",
+        "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}"
+      }},
       "concurrency_limit": 10
     },
     "attachment": {
@@ -175,7 +179,16 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_*.json",
+            "item_pattern": "$.result",
+            "env_pattern": {
+              "ARTICLE_ID": "$.articleId"
+            }
+          }
+        },
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}.json",
             "item_pattern": "$.result.attaches[*]",
             "env_pattern": {
               "URL": "$.url",
@@ -184,63 +197,67 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
           }
         }
       ],
-      "req": {
+      "job": {"HttpJob": {
         "method": "GET",
         "url": "{{{URL}}}",
         "header": {
           "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
         },
-        "filename": "article_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}_attachment_{{FILE_NAME}}"
-      },
-      "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}",
+        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{FILE_NAME}}",
+        "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}"
+      }},
+      "concurrency_limit": 10
+    },
+    "output_html": {
+      "name": "output_html",
+      "task_iters": [
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "item_pattern": "$.result.menus[*]",
+            "env_pattern": {
+              "MENU_ID": "$.menuId",
+              "MENU_NAME": "$.name"
+            }
+          }
+        },
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+            "item_pattern": "$.result",
+            "env_pattern": {
+              "ARTICLE_ID": "$.articleId",
+              "WRITE_DATE": "$.article.writeDate",
+              "SUBJECT": "$.article.subject",
+              "CONTENT_HTML": "$.article.contentHtml",
+              "COMMENTS": "$.comments.items",
+              "ATTACHES": "$.attaches"
+            }
+          }
+        }
+      ],
+      "job": {"HtmlJob": {
+        "json_map": {
+          "COMMENTS": [
+            ["ID", "$.writer.id"],
+            ["NICK", "$.writer.nick"],
+            ["UPDATE_DATE", "$.updateDate"],
+            ["CONTENT", "$.content"]
+          ],
+          "ATTACHES": [
+            ["NAME", "$.name"]
+          ]
+        },
+        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.html",
+        "output_template_file": "C:/sources/tr-crawler/sample/output_template.html",
+        "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}"
+      }},
       "concurrency_limit": 10
     }
   },
-  "output_html": {
-    "name": "output_html",
-    "task_iters": [
-      {
-        "GlobJsonPattern": {
-          "glob_pattern": "C:/sources/crawler_data/step1/*.json",
-          "item_pattern": "$.result.menus[*]",
-          "env_pattern": {
-            "MENU_ID": "$.menuId",
-            "MENU_NAME": "$.name"
-          }
-        }
-      },
-      {
-        "GlobJsonPattern": {
-          "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
-          "item_pattern": "$.result",
-          "env_pattern": {
-            "ARTICLE_ID": "$.articleId",
-            "SUBJECT": "$.article.subject",
-            "CONTENT_HTML": "$.article.contentHtml",
-            "COMMENTS": "$.comments.items",
-            "ATTACHES": "$.attaches"
-          }
-        }
-      }
-    ],
-    "json_map": {
-      "COMMENTS": {
-        "ID": "$.writer.id",
-        "NICK": "$.writer.nick",
-        "CONTENT": "$.content",
-        "UPDATE_DATE": "$.updateDate"
-      },
-      "ATTACHES": {
-        "NAME": "$.name"
-      }
-    },
-    "filename": "html_{{CAFE_ID}}_{{MENU_ID}}_{{ARTICLE_ID}}.html",
-    "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}",
-    "output_template": "C:/sources/crawler_data/output_template.html",
-    "concurrency_limit": 10
-  },
   "edges": []
 }
+
 
 
 

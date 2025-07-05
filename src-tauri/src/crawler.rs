@@ -40,8 +40,6 @@ pub struct Crawler {
     pub steps: Shared<HashMap<String, Step>>,
     pub step_handles: Shared<HashMap<String, StepHandle>>,
     pub dag: Shared<Graph<String, ()>>,
-    // pub output_html: Shared<Option<OutputHtml>>,
-    // pub output_html_handle: Shared<Option<StepHandle>>,
 }
 
 impl Crawler {
@@ -141,11 +139,11 @@ impl Crawler {
     pub async fn load(&mut self, setting: Setting) -> Result<()> {
         println!("setting: {:?}", setting);
         let mut step_handles = HashMap::<String, StepHandle>::new();
-        for (_nm, step) in setting.steps.iter() {
+        for (nm, step) in setting.steps.iter() {
             // let (tx, rx) = mpsc::channel::<Request>(1000);
             let concurrency_limit = step.concurrency_limit;
             let step_handle = StepHandle {
-                name: step.name.clone(),
+                name: nm.clone(),
                 // client: self.client.clone(),
                 notifier: Arc::new(Notify::new()),
                 // rx,
@@ -153,7 +151,7 @@ impl Crawler {
                 paused: Arc::new(AtomicBool::new(false)),
                 semaphore: Arc::new(Semaphore::new(concurrency_limit)),
             };
-            step_handles.insert(step.name.clone(), step_handle);
+            step_handles.insert(nm.clone(), step_handle);
         }
 
         let mut dag = Graph::<String, ()>::new();
@@ -729,4 +727,10 @@ fn from_unix_time(s: String) -> Result<String> {
 
     let datetime_local = datetime_utc.with_timezone(&Local);
     Ok(datetime_local.format("%Y-%m-%d %H:%M:%S").to_string())
+}
+
+pub async fn save_file(file_path: String, txt: String) -> Result<()> {
+    let mut file = std::fs::File::create(file_path)?;
+    file.write_all(txt.as_bytes())?;
+    Ok(())
 }

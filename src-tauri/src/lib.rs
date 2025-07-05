@@ -6,6 +6,7 @@ use tauri::State;
 use tauri_specta::{collect_commands, Builder};
 // use tauri::{State, Manager, Listener};
 use crate::crawler::Crawler;
+use crate::crawler::save_file;
 use crate::models::{ApiError, Setting, TextContent};
 use tokio::sync::RwLock;
 // use tauri::api::dialog::FileDialogBuilder;
@@ -37,17 +38,6 @@ async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) ->
     step_handle_map.paused.store(true, Ordering::SeqCst);
     Ok(())
 }
-
-// #[tauri::command]
-// #[specta::specta]
-// async fn stop_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
-//     println!("stop_output_html");
-//     let crawler = state.read().await;
-//     let output_html_handle_lock = crawler.output_html_handle.write().await;
-//     let Some(output_html_handle) = &*output_html_handle_lock else { return Ok(())};
-//     output_html_handle.paused.store(true, Ordering::SeqCst);
-//     Ok(())
-// }
 
 
 #[allow(dead_code)]
@@ -89,14 +79,11 @@ async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Re
     Ok(())
 }
 
-// #[tauri::command]
-// #[specta::specta]
-// async fn run_output_html(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<()> {
-//     println!("run_output_html");
-//     let mut crawler = state.write().await;
-//     crawler.run_output_html().await?;
-//     Ok(())
-// }
+#[tauri::command]
+#[specta::specta]
+async fn save_setting(file_path: String, txt: String) -> Result<()> {
+    Ok(save_file(file_path, txt).await?)
+}
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -108,6 +95,7 @@ pub fn run() {
         load_crawler,
         run_step,
         stop_step,
+        save_setting,
         // run_output_html,
         // stop_output_html
     ]);
