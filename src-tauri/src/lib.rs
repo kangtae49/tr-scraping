@@ -27,32 +27,32 @@ async fn get_arg_path(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<Option<S
     Ok(crawler.get_arg_path())
 }
 
-#[allow(dead_code)]
-#[tauri::command]
-#[specta::specta]
-async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
-    println!("stop_step");
-    let crawler = state.read().await;
-    let mut map = crawler.step_handles.write().await;
-    let step_handle_map = map.get_mut(&step_name).unwrap();
-    step_handle_map.paused.store(true, Ordering::SeqCst);
-    Ok(())
-}
+// #[allow(dead_code)]
+// #[tauri::command]
+// #[specta::specta]
+// async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
+//     println!("stop_step");
+//     let crawler = state.read().await;
+//     let mut map = crawler.step_handles.write().await;
+//     let step_handle_map = map.get_mut(&step_name).unwrap();
+//     step_handle_map.paused.store(true, Ordering::SeqCst);
+//     Ok(())
+// }
 
 
-#[allow(dead_code)]
-#[tauri::command]
-#[specta::specta]
-async fn resume(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
-    println!("resume");
-    let crawler = state.read().await;
-    let mut map = crawler.step_handles.write().await;
-    let step_handle_map = map.get_mut(&step_name).unwrap();
-
-    step_handle_map.paused.store(false, Ordering::SeqCst);
-    step_handle_map.notifier.notify_one();
-    Ok(())
-}
+// #[allow(dead_code)]
+// #[tauri::command]
+// #[specta::specta]
+// async fn resume(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
+//     println!("resume");
+//     let crawler = state.read().await;
+//     let mut map = crawler.step_handles.write().await;
+//     let step_handle_map = map.get_mut(&step_name).unwrap();
+//
+//     step_handle_map.paused.store(false, Ordering::SeqCst);
+//     step_handle_map.notifier.notify_one();
+//     Ok(())
+// }
 
 #[tauri::command]
 #[specta::specta]
@@ -74,7 +74,7 @@ async fn read_txt(state: State<'_, Arc<RwLock<Crawler>>>, path_str: &str) -> Res
 #[specta::specta]
 async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
     println!("run_step: {}", step_name);
-    let mut crawler = state.write().await;
+    let crawler = state.read().await;
     crawler.run_step(String::from(step_name)).await?;
     Ok(())
 }
@@ -85,6 +85,26 @@ async fn save_setting(file_path: String, txt: String) -> Result<()> {
     Ok(save_file(file_path, txt).await?)
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn pause_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
+    println!("lib pause_step start");
+    let crawler = state.read().await;
+    println!("lib pause_step 1");
+    crawler.pause_step(step_name.to_string(), true).await?;
+    println!("lib pause_step end");
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_pause_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<bool> {
+    let crawler = state.read().await;
+    Ok(crawler.get_pause_step(step_name.to_string()).await?)
+}
+
+
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -94,8 +114,10 @@ pub fn run() {
         read_txt,
         load_crawler,
         run_step,
-        stop_step,
+        // stop_step,
         save_setting,
+        pause_step,
+        get_pause_step,
         // run_output_html,
         // stop_output_html
     ]);

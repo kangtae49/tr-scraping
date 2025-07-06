@@ -118,6 +118,7 @@ pub struct HttpTask {
     pub url: String,
     pub method: String,
     pub header: HeaderMap,
+    pub folder: String,
     pub save_path: String,
 }
 
@@ -126,6 +127,7 @@ pub struct HtmlTask {
     pub cur_env: HashMap<String, String>,
     pub html_template: String,
     pub json_map: HashMap<String, Vec<(String, String)>>,
+    pub folder: String,
     pub save_path: String,
 }
 

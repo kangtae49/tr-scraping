@@ -35,6 +35,12 @@ pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
 pnpm add monaco-editor
 ```
 
+## publish
+
+```sh
+pnpm tauri build
+```
+
 ## crawler.json
 
 ```json

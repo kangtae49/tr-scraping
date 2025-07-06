@@ -38,9 +38,23 @@ function MainPane(): React.JSX.Element {
       .catch(e => console.error(e.message))
   }
 
-  const stopStep = async (stepName: string): Promise<void> => {
-    console.log("MainPane.stopStep", stepName);
-    api.stopStep(stepName).then(() => {})
+  // const stopStep = async (stepName: string): Promise<void> => {
+  //   console.log("MainPane.stopStep", stepName);
+  //   api.stopStep(stepName).then(() => {})
+  //     .catch(e => console.error(e.message))
+  // }
+
+  const pauseStep = async (stepName: string): Promise<void> => {
+    console.log("MainPane.pauseStep", stepName);
+    api.pauseStep(stepName).then(() => {})
+      .catch(e => console.error(e.message))
+  }
+
+
+  const test1 = async (): Promise<void> => {
+    api.getPauseStep("output_html").then((x) => {
+        console.log("getPauseStep:", x);
+      })
       .catch(e => console.error(e.message))
   }
 
@@ -88,7 +102,7 @@ function MainPane(): React.JSX.Element {
                 return (
                   <div className="step" key={key}>
                     <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
-                    <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCirclePause} /></div>
+                    <div className="btn" onClick={() => pauseStep(key)}><Icon icon={faCirclePause} /></div>
                     <div className="label">Run {key}</div>
                   </div>
                 )
@@ -99,6 +113,9 @@ function MainPane(): React.JSX.Element {
       </div>
       <div className="editor">
         <SettingView />
+      </div>
+      <div onClick={() => test1()}>
+        hi
       </div>
     </div>
   )

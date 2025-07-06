@@ -23,6 +23,7 @@ use tokio::io::{AsyncReadExt};
 use tokio::sync::Semaphore;
 use tokio::sync::{Notify, RwLock};
 use tokio_stream::{Stream, StreamExt};
+// use std::time::Duration;
 
 
 use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob};
@@ -183,7 +184,34 @@ impl Crawler {
         Ok(())
     }
 
-    pub async fn run_step(&mut self, step_name: String) -> Result<()> {
+    pub async fn pause_step(&self, step_name: String, val: bool) -> Result<()> {
+        println!("pause_step start");
+        // let step_handles_arc = self.step_handles.clone();
+        let step_handles = self.step_handles.read().await;
+        // let step_handle = step_handles
+        //     .get(&step_name)
+        //     .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+        let step_handle = step_handles.get(&step_name).unwrap();
+        let paused = step_handle.paused.clone();
+        paused.store(val, Ordering::SeqCst);
+        println!("pause_step end");
+        Ok(())
+    }
+
+    pub async fn get_pause_step(&self, step_name: String) -> Result<bool> {
+        let step_handles_arc = self.step_handles.clone();
+        let step_handles = step_handles_arc.read().await;
+        let step_handle = step_handles
+            .get(&step_name)
+            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+
+        let paused = step_handle.paused.clone();
+        let is_pause = paused.load(Ordering::SeqCst);
+        Ok(is_pause)
+    }
+
+
+    pub async fn run_step(&self, step_name: String) -> Result<()> {
         println!("Start Step: {}", &step_name);
         let steps_arc = Arc::clone(&self.steps);
         let steps = steps_arc.read().await;
@@ -198,14 +226,6 @@ impl Crawler {
         let env = env_lock.clone();
         let header_lock = header_arc.read().await;
         let g_header = header_lock.clone();
-
-        let step_handles_arc = self.step_handles.clone();
-        let step_handles = step_handles_arc.read().await;
-        let step_handle = step_handles
-            .get(&step_name)
-            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
-        let semaphore = step_handle.semaphore.clone();
-        let paused = step_handle.paused.clone();
 
         let mut task_iters = step.task_iters.clone();
         if task_iters.is_empty() {
@@ -223,28 +243,55 @@ impl Crawler {
             }
         }
 
+        // let step_handles_arc = self.step_handles.clone();
+        let step_handles = self.step_handles.read().await;
+        let step_handle = step_handles.get(&step_name).unwrap();
+        // let step_handle = step_handles
+        //     .get(&step_name)
+        //     .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+        let semaphore = step_handle.semaphore.clone();
 
+        // let semaphore = Arc::new(Semaphore::new(2));
+
+        // self.pause_step(step_name.clone(), false).await?;
+
+        let paused = step_handle.paused.clone();
         paused.store(false, Ordering::SeqCst);
 
         let mut handles = Vec::new();
 
         let mut stream = get_iters(task_iters, env.clone());
-        while let Some((vals, cur_env)) = stream.next().await {
-            println!("iter: {:?}", vals);
+        while let Some((_vals, cur_env)) = stream.next().await {
+            // println!("iter: {:?}", vals);
+            println!("pause: {}", paused.load(Ordering::SeqCst));
             if paused.load(Ordering::SeqCst) {
                 println!("paused");
-                return Ok(());
+                break;
             }
 
             let task = self.to_task(job.clone(), cur_env, g_header.clone()).await?;
-            println!("task: {:?}", task);
-            let _permit = semaphore.clone().acquire_owned().await.unwrap();
+            let semaphore = semaphore.clone();
+            let paused = step_handle.paused.clone();
+
             let handle = tokio::task::spawn(async move {
+                println!("task start");
+                println!("waiting for permit!!!!!!!!!!!!!!!");
+                let permit = semaphore.acquire_owned().await.unwrap();
+                println!("got         permit!!!!!!!!!!!!!!!");
+
+                println!("pause: {}", paused.load(Ordering::SeqCst));
+                if paused.load(Ordering::SeqCst) {
+                    println!("paused");
+                    return;
+                }
+
                 if let Err(e) = run_task(task).await {
                     eprintln!("Error: {:?}", e);
                 }
+                drop(permit);
+                println!("task end");
             });
-
+            // handle.await.unwrap();
             handles.push(handle);
         }
 
@@ -285,10 +332,10 @@ impl Crawler {
             header.insert(nm, val);
         }
         let folder = get_handlebars_safe_dir(&http_job.output, &cur_env)?;
-        let p_folder = Path::new(&folder);
-        if !p_folder.exists() {
-            std::fs::create_dir_all(Path::new(&folder))?;
-        }
+        // let p_folder = Path::new(&folder);
+        // if !p_folder.exists() {
+        //     std::fs::create_dir_all(Path::new(&folder))?;
+        // }
         let filename = sanitize(get_handlebars(&http_job.filename, &cur_env)?);
         let p: PathBuf = Path::new(&folder).join(filename);
         let save_path = p.to_string_lossy().to_string();
@@ -298,29 +345,31 @@ impl Crawler {
             url,
             method,
             header,
+            folder,
             save_path,
         }))
     }
 
     pub async fn to_html_task(&self, html_job: HtmlJob, cur_env: HashMap<String, String>) -> Result<Task> {
-        println!("to_html_task: {:?}", html_job);
+        // println!("to_html_task: {:?}", html_job);
         let Some(output_template) = html_job.output_template.clone() else { return Err(ApiError::CrawlerError("no output template".to_string())); };
 
-        println!("output_template: {}", output_template);
+        // println!("output_template: {}", output_template);
 
         let folder = get_handlebars_safe_dir(&html_job.output, &cur_env)?;
-        let p_folder = Path::new(&folder);
-        if !p_folder.exists() {
-            std::fs::create_dir_all(Path::new(&folder))?;
-        }
+        // let p_folder = Path::new(&folder);
+        // if !p_folder.exists() {
+        //     std::fs::create_dir_all(Path::new(&folder))?;
+        // }
         let filename = sanitize(get_handlebars(&html_job.filename, &cur_env)?);
         let p: PathBuf = Path::new(&folder).join(filename);
         let save_path = p.to_string_lossy().to_string();
-        println!("{}", save_path);
+        // println!("{}", save_path);
         Ok(Task::HtmlTask(HtmlTask {
             cur_env: cur_env.clone(),
             html_template: output_template.clone(),
             json_map: html_job.json_map.clone(),
+            folder,
             save_path,
         }))
     }
@@ -570,6 +619,12 @@ async fn run_task(task: Task) -> Result<()> {
 }
 
 async fn run_task_html(mut task: HtmlTask) -> Result<()> {
+    let folder = task.folder.clone();
+    let p_folder = Path::new(&folder);
+    if !p_folder.exists() {
+        std::fs::create_dir_all(Path::new(&folder))?;
+    }
+
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
     let p = Path::new(&save_path);
@@ -617,10 +672,20 @@ async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     let mut file = std::fs::File::create(p_tmp)?;
     file.write_all(html_content.as_bytes())?;
     std::fs::rename(p_tmp, p)?;
+    // use tokio::time::{sleep, Duration};
+    // println!("sleep start");
+    // sleep(Duration::from_secs(5)).await;
+    // println!("sleep end");
     Ok(())
 }
 
 async fn run_task_http(task: HttpTask) -> Result<()> {
+    let folder = task.folder.clone();
+    let p_folder = Path::new(&folder);
+    if !p_folder.exists() {
+        std::fs::create_dir_all(Path::new(&folder))?;
+    }
+
     let save_path = task.save_path.clone();
     let tmp_path = format!("{}.tmp", &save_path);
     let p = Path::new(&save_path);
