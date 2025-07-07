@@ -27,14 +27,14 @@ export const saveSetting = async (filePath: string, txt: string): Promise<void> 
   return await invoke("save_setting", {filePath, txt})
 }
 
-export const pauseStep = async (stepName: string): Promise<void> => {
-  console.log('pauseStep:')
-  return await invoke("pause_step", {stepName})
+export const stopStep = async (stepName: string): Promise<void> => {
+  console.log('stopStep:')
+  return await invoke("stop_step", {stepName})
 }
 
-export const getPauseStep = async (stepName: string): Promise<boolean> => {
-  console.log('getPauseStep:')
-  return await invoke("get_pause_step", {stepName})
+export const getStopStep = async (stepName: string): Promise<boolean> => {
+  console.log('getStopStep:')
+  return await invoke("get_stop_step", {stepName})
 }
 
 // export const stopOutputHtml = async (): Promise<void> => {

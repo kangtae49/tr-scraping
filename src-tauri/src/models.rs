@@ -148,7 +148,7 @@ pub struct StepHandle {
     // pub tx: mpsc::Sender<Request>,
     // pub client: Client,
     pub semaphore: Arc<Semaphore>,
-    pub paused: Arc<AtomicBool>,
+    pub stop: Arc<AtomicBool>,
     pub notifier: Arc<Notify>,
 }
 

@@ -54,5 +54,5 @@ html, body, #root {
 .fa-folder:hover { transform: var(--scale); color: var(--hover-color);}
 .fa-circle-play { color: var(--icon-color); margin-right: 5px;}
 .fa-circle-play:hover { transform: var(--scale); color: var(--hover-color);}
-.fa-circle-pause { color: var(--icon-color); margin-right: 5px;}
-.fa-circle-pause:hover { transform: var(--scale); color: var(--hover-color);}
+.fa-circle-stop { color: var(--icon-color); margin-right: 5px;}
+.fa-circle-stop:hover { transform: var(--scale); color: var(--hover-color);}

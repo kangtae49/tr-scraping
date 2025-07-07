@@ -1,15 +1,13 @@
 mod crawler;
 mod models;
 
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::{Arc};
 use tauri::State;
 use tauri_specta::{collect_commands, Builder};
-// use tauri::{State, Manager, Listener};
 use crate::crawler::Crawler;
 use crate::crawler::save_file;
 use crate::models::{ApiError, Setting, TextContent};
 use tokio::sync::RwLock;
-// use tauri::api::dialog::FileDialogBuilder;
 
 type Result<T> = std::result::Result<T, ApiError>;
 
@@ -87,20 +85,17 @@ async fn save_setting(file_path: String, txt: String) -> Result<()> {
 
 #[tauri::command]
 #[specta::specta]
-async fn pause_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
-    println!("lib pause_step start");
+async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
     let crawler = state.read().await;
-    println!("lib pause_step 1");
-    crawler.pause_step(step_name.to_string(), true).await?;
-    println!("lib pause_step end");
+    crawler.stop_step(step_name.to_string(), true).await?;
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-async fn get_pause_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<bool> {
+async fn get_stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<bool> {
     let crawler = state.read().await;
-    Ok(crawler.get_pause_step(step_name.to_string()).await?)
+    Ok(crawler.get_stop_step(step_name.to_string()).await?)
 }
 
 
@@ -114,10 +109,9 @@ pub fn run() {
         read_txt,
         load_crawler,
         run_step,
-        // stop_step,
         save_setting,
-        pause_step,
-        get_pause_step,
+        stop_step,
+        get_stop_step,
         // run_output_html,
         // stop_output_html
     ]);

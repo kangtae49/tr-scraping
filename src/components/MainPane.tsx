@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from "react";
 import '@assets/main-pane.css'
 import * as api from '@/api'
-import {TextContent, Step, Edge, Setting} from "@/bindings.ts";
+import { Setting } from "@/bindings.ts";
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome'
-import { faCirclePlay, faCirclePause, faFolder, faArrowRotateRight } from '@fortawesome/free-solid-svg-icons'
+import { faCirclePlay, faCircleStop, faFolder, faArrowRotateRight } from '@fortawesome/free-solid-svg-icons'
 import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingPathStore } from "@store/settingPathStore.ts";
 import SettingView from "@components/SettingView.tsx";
@@ -44,19 +44,19 @@ function MainPane(): React.JSX.Element {
   //     .catch(e => console.error(e.message))
   // }
 
-  const pauseStep = async (stepName: string): Promise<void> => {
-    console.log("MainPane.pauseStep", stepName);
-    api.pauseStep(stepName).then(() => {})
+  const stopStep = async (stepName: string): Promise<void> => {
+    console.log("MainPane.stopStep", stepName);
+    api.stopStep(stepName).then(() => {})
       .catch(e => console.error(e.message))
   }
 
 
-  const test1 = async (): Promise<void> => {
-    api.getPauseStep("output_html").then((x) => {
-        console.log("getPauseStep:", x);
-      })
-      .catch(e => console.error(e.message))
-  }
+  // const test1 = async (): Promise<void> => {
+  //   api.getStopStep("output_html").then((x) => {
+  //       console.log("getStopStep:", x);
+  //     })
+  //     .catch(e => console.error(e.message))
+  // }
 
 
   const openSetting = async (): Promise<void> => {
@@ -90,11 +90,6 @@ function MainPane(): React.JSX.Element {
         <div>
           <h2>Crawler</h2>
         </div>
-        <div className="load">
-          <div className="btn" onClick={() => openSetting()}><Icon icon={faFolder} /></div>
-          <div className="btn" onClick={() => loadJson()}><Icon icon={faArrowRotateRight} /></div>
-          <div className="label">LoadJson - {settingPath}</div>
-        </div>
         {setting && (
           <div className="steps">
             {
@@ -102,7 +97,7 @@ function MainPane(): React.JSX.Element {
                 return (
                   <div className="step" key={key}>
                     <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
-                    <div className="btn" onClick={() => pauseStep(key)}><Icon icon={faCirclePause} /></div>
+                    <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCircleStop} /></div>
                     <div className="label">Run {key}</div>
                   </div>
                 )
@@ -111,11 +106,13 @@ function MainPane(): React.JSX.Element {
           </div>
         )}
       </div>
+      <div className="load">
+        <div className="btn" onClick={() => openSetting()}><Icon icon={faFolder} /></div>
+        <div className="btn" onClick={() => loadJson()}><Icon icon={faArrowRotateRight} /></div>
+        <div className="label">LoadJson - {settingPath}</div>
+      </div>
       <div className="editor">
         <SettingView />
-      </div>
-      <div onClick={() => test1()}>
-        hi
       </div>
     </div>
   )
