@@ -110,7 +110,7 @@ function MainPane(): React.JSX.Element {
   return (
     <div className="main-pane">
       <div className="top">
-        <div>
+        <div className="title">
           <h2>Crawler</h2>
         </div>
         <div className="control">
