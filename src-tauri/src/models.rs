@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::{Notify, Semaphore};
+use tokio::sync::{Semaphore};
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub enum TaskIter {
@@ -144,12 +144,8 @@ pub struct Setting {
 pub struct StepHandle {
     #[allow(dead_code)]
     pub name: String,
-    // pub rx: mpsc::Receiver<Request>,
-    // pub tx: mpsc::Sender<Request>,
-    // pub client: Client,
     pub semaphore: Arc<Semaphore>,
     pub stop: Arc<AtomicBool>,
-    pub notifier: Arc<Notify>,
 }
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
@@ -167,6 +163,16 @@ pub struct TextContent {
     pub mimetype: String,
     pub enc: Option<String>,
     pub text: Option<String>,
+}
+
+#[allow(dead_code)]
+#[skip_serializing_none]
+#[serde_as]
+#[derive(Type, Serialize, Deserialize, Clone, Debug, Default)]
+pub struct StepNotify {
+    pub name: String,
+    pub status: String,
+    pub message: String,
 }
 
 #[derive(Type, Serialize, Deserialize, Error, Debug)]

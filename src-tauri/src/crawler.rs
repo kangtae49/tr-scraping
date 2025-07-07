@@ -19,13 +19,14 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, RequestBuilder};
 use sanitize_filename::sanitize;
 use serde_json::Value;
+use tauri::Emitter;
 use tokio::io::{AsyncReadExt};
 use tokio::sync::Semaphore;
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::{RwLock};
 use tokio_stream::{Stream, StreamExt};
 
 
-use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob};
+use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob, StepNotify};
 
 type ItemData = HashMap<String, String>;
 
@@ -140,14 +141,9 @@ impl Crawler {
         println!("setting: {:?}", setting);
         let mut step_handles = HashMap::<String, StepHandle>::new();
         for (nm, step) in setting.steps.iter() {
-            // let (tx, rx) = mpsc::channel::<Request>(1000);
             let concurrency_limit = step.concurrency_limit;
             let step_handle = StepHandle {
                 name: nm.clone(),
-                // client: self.client.clone(),
-                notifier: Arc::new(Notify::new()),
-                // rx,
-                // tx: tx.clone(),
                 stop: Arc::new(AtomicBool::new(false)),
                 semaphore: Arc::new(Semaphore::new(concurrency_limit)),
             };
@@ -206,8 +202,16 @@ impl Crawler {
     }
 
 
-    pub async fn run_step(&self, step_name: String) -> Result<()> {
+    pub async fn run_step(&self, step_name: String, window: tauri::Window) -> Result<()> {
         println!("Start Step: {}", &step_name);
+        let notify = StepNotify {
+            name: "status".to_string(),
+            status: "start".to_string(),
+            message: format!("Start Step {}", &step_name)
+        };
+        let window_clone = window.clone();
+        window_clone.emit("status", notify).unwrap();
+
         let steps_arc = Arc::clone(&self.steps);
         let steps = steps_arc.read().await;
         let env_arc = Arc::clone(&self.env);
@@ -260,11 +264,30 @@ impl Crawler {
                 break;
             }
 
+            let window_clone = window.clone();
             let task = self.to_task(job.clone(), cur_env, g_header.clone()).await?;
             let handle = tokio::task::spawn(async move {
-                if let Err(e) = run_task(task).await {
+                if let Err(e) = run_task(task.clone()).await {
                     eprintln!("Error: {:?}", e);
                 }
+
+                let task_notify = match task.clone() {
+                    Task::HttpTask(http_task) => {
+                        StepNotify {
+                            name: "progress".to_string(),
+                            status: "".to_string(),
+                            message: http_task.save_path.clone()
+                        }
+                    }
+                    Task::HtmlTask(html_task) => {
+                        StepNotify {
+                            name: "progress".to_string(),
+                            status: "".to_string(),
+                            message: html_task.save_path.clone()
+                        }
+                    }
+                };
+                window_clone.emit(&task_notify.name.clone(), task_notify.clone()).unwrap();
                 drop(permit);
             });
             handles.push(handle);
@@ -276,6 +299,15 @@ impl Crawler {
                 Err(e) => eprintln!("Error: {:?}", e),
             };
         }
+
+        let notify = StepNotify {
+            name: "status".to_string(),
+            status: "end".to_string(),
+            message: format!("End Step {}", &step_name)
+        };
+        let window_clone = window.clone();
+        window_clone.emit("status", notify).unwrap();
+
         println!("End Step: {}", &step_name);
         Ok(())
     }

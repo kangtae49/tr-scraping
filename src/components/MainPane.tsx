@@ -7,6 +7,11 @@ import { faCirclePlay, faCircleStop, faFolder, faArrowRotateRight } from '@forta
 import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingPathStore } from "@store/settingPathStore.ts";
 import SettingView from "@components/SettingView.tsx";
+import { listen } from "@tauri-apps/api/event";
+
+export type StepNotify = { name: string; status: string; message: string }
+
+
 
 function MainPane(): React.JSX.Element {
   let [setting, setSetting] = useState<Setting | undefined>(undefined);
@@ -84,27 +89,59 @@ function MainPane(): React.JSX.Element {
     })
   }, []);
 
+  const [stepProgressNotify, setStepProgressNotify] = useState<StepNotify | undefined>(undefined);
+  const [stepStatusNotify, setStepStatusNotify] = useState<StepNotify | undefined>(undefined);
+  useEffect(() => {
+    const unlistenProgress = listen<StepNotify>("progress", (event) => {
+      setStepProgressNotify(event.payload);
+    });
+
+    const unlistenStatus = listen<StepNotify>("status", (event) => {
+      setStepStatusNotify(event.payload);
+    });
+
+    // cleanup: 컴포넌트 unmount 시 리스너 제거
+    return () => {
+      unlistenProgress.then((f) => f());
+      unlistenStatus.then((f) => f());
+    };
+  }, []);
+
   return (
     <div className="main-pane">
       <div className="top">
         <div>
           <h2>Crawler</h2>
         </div>
-        {setting && (
-          <div className="steps">
-            {
-              Object.entries(setting.steps).map(([key, _step])  => {
-                return (
-                  <div className="step" key={key}>
-                    <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
-                    <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCircleStop} /></div>
-                    <div className="label">Run {key}</div>
-                  </div>
-                )
-              })
-            }
-          </div>
-        )}
+        <div className="control">
+          {setting && (
+            <div className="steps">
+              {
+                Object.entries(setting.steps).map(([key, _step])  => {
+                  return (
+                    <div className="step" key={key}>
+                      <div className="btn" onClick={() => runStep(key)}><Icon icon={faCirclePlay} /></div>
+                      <div className="btn" onClick={() => stopStep(key)}><Icon icon={faCircleStop} /></div>
+                      <div className="label">Run {key}</div>
+                    </div>
+                  )
+                })
+              }
+            </div>
+          )}
+            <div className="notify">
+            {stepStatusNotify && (
+              <>
+                <div className="message">{stepStatusNotify.message}</div>
+              </>
+            )}
+            {stepProgressNotify && (
+                <>
+                  <div className="message">{stepProgressNotify.message}</div>
+                </>
+            )}
+            </div>
+        </div>
       </div>
       <div className="load">
         <div className="btn" onClick={() => openSetting()}><Icon icon={faFolder} /></div>

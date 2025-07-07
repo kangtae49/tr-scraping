@@ -6,7 +6,7 @@ use tauri::State;
 use tauri_specta::{collect_commands, Builder};
 use crate::crawler::Crawler;
 use crate::crawler::save_file;
-use crate::models::{ApiError, Setting, TextContent};
+use crate::models::{ApiError, Setting, StepNotify, TextContent};
 use tokio::sync::RwLock;
 
 type Result<T> = std::result::Result<T, ApiError>;
@@ -70,10 +70,10 @@ async fn read_txt(state: State<'_, Arc<RwLock<Crawler>>>, path_str: &str) -> Res
 
 #[tauri::command]
 #[specta::specta]
-async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
+async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, window: tauri::Window, step_name: &str) -> Result<()> {
     println!("run_step: {}", step_name);
     let crawler = state.read().await;
-    crawler.run_step(String::from(step_name)).await?;
+    crawler.run_step(String::from(step_name), window).await?;
     Ok(())
 }
 
@@ -120,10 +120,19 @@ pub fn run() {
     {
         use specta_typescript::BigIntExportBehavior;
         use specta_typescript::Typescript;
+        use specta::{TypeCollection};
+
+        let mut types = TypeCollection::default();
+        types.register::<StepNotify>();
+        Typescript::default()
+            .export_to("../src/bindings_etc.ts", &types)
+            .unwrap();
+
         let ts = Typescript::default().bigint(BigIntExportBehavior::Number);
         builder
             .export(ts, "../src/bindings.ts")
             .expect("Failed to export typescript bindings");
+
 
         let schema = schemars::schema_for!(Setting);
         let json_schema = serde_json::to_string_pretty(&schema).unwrap();

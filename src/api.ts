@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import {Edge, Setting, Step, TextContent} from "@/bindings.ts";
+import { Setting, TextContent } from "@/bindings.ts";
 
 export const getArgPath = async (): Promise<string | undefined> => {
   return await invoke("get_arg_path")
