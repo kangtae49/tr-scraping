@@ -665,10 +665,10 @@ async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     let mut file = std::fs::File::create(p_tmp)?;
     file.write_all(html_content.as_bytes())?;
     std::fs::rename(p_tmp, p)?;
-    use tokio::time::{sleep, Duration};
-    println!("sleep start");
-    sleep(Duration::from_secs(5)).await;
-    println!("sleep end");
+    // use tokio::time::{sleep, Duration};
+    // println!("sleep start");
+    // sleep(Duration::from_secs(5)).await;
+    // println!("sleep end");
     Ok(())
 }
 
