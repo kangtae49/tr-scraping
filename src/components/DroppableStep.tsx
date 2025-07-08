@@ -1,10 +1,10 @@
 import React from 'react';
 import { useSortable } from "@dnd-kit/sortable";
-import { DragStep } from "@/models.ts";
+import {DragStep, STEP_PAUSED, STEP_RUNNING, STEP_STOPPED} from "@/models.ts";
 import {CSS} from "@dnd-kit/utilities";
 import * as api from "@/api.ts";
 import {FontAwesomeIcon as Icon} from "@fortawesome/react-fontawesome";
-import {faCirclePlay, faCircleStop} from "@fortawesome/free-solid-svg-icons";
+import {faCircleChevronRight, faCirclePause, faCirclePlay, faCircleStop} from "@fortawesome/free-solid-svg-icons";
 
 type Props = {
   id: DragStep
@@ -31,8 +31,11 @@ function DroppableStep(props: Props) {
   return (
     <div className="step" ref={setNodeRef} {...attributes}  style={style}>
       <div className="btn" onClick={() => api.runStep(props.id.stepName)}><Icon icon={faCirclePlay} /></div>
-      <div className="btn" onClick={() => api.stopStep(props.id.stepName)}><Icon icon={faCircleStop} /></div>
+      <div className="btn" onClick={() => api.updateState(props.id.stepName, STEP_STOPPED)}><Icon icon={faCircleStop} /></div>
+      <div className="btn" onClick={() => api.updateState(props.id.stepName, STEP_PAUSED)}><Icon icon={faCirclePause} /></div>
+      <div className="btn" onClick={() => api.updateState(props.id.stepName, STEP_RUNNING)}><Icon icon={faCircleChevronRight} /></div>
       <div className="label" {...listeners}>{props.id.stepName}</div>
+
     </div>
   );
 }

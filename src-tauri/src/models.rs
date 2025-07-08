@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use specta::Type;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
+use std::sync::{Arc, Condvar, Mutex};
 use thiserror::Error;
 use tokio::sync::{Semaphore};
 
@@ -144,7 +144,8 @@ pub struct StepHandle {
     #[allow(dead_code)]
     pub name: String,
     pub semaphore: Arc<Semaphore>,
-    pub stop: Arc<AtomicBool>,
+    pub state: Arc<AtomicU8>,
+    pub control: Arc<(Mutex<()>, Condvar)>
 }
 
 

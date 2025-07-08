@@ -25,33 +25,6 @@ async fn get_arg_path(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<Option<S
     Ok(crawler.get_arg_path())
 }
 
-// #[allow(dead_code)]
-// #[tauri::command]
-// #[specta::specta]
-// async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
-//     println!("stop_step");
-//     let crawler = state.read().await;
-//     let mut map = crawler.step_handles.write().await;
-//     let step_handle_map = map.get_mut(&step_name).unwrap();
-//     step_handle_map.paused.store(true, Ordering::SeqCst);
-//     Ok(())
-// }
-
-
-// #[allow(dead_code)]
-// #[tauri::command]
-// #[specta::specta]
-// async fn resume(state: State<'_, Arc<RwLock<Crawler>>>, step_name: String) -> Result<()> {
-//     println!("resume");
-//     let crawler = state.read().await;
-//     let mut map = crawler.step_handles.write().await;
-//     let step_handle_map = map.get_mut(&step_name).unwrap();
-//
-//     step_handle_map.paused.store(false, Ordering::SeqCst);
-//     step_handle_map.notifier.notify_one();
-//     Ok(())
-// }
-
 #[tauri::command]
 #[specta::specta]
 async fn load_crawler(state: State<'_, Arc<RwLock<Crawler>>>, setting: Setting) -> Result<()> {
@@ -85,20 +58,11 @@ async fn save_setting(file_path: String, txt: String) -> Result<()> {
 
 #[tauri::command]
 #[specta::specta]
-async fn stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<()> {
+async fn update_state(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str, val: u8) -> Result<()> {
     let crawler = state.read().await;
-    crawler.stop_step(step_name.to_string(), true).await?;
+    crawler.update_state(step_name.to_string(), val).await?;
     Ok(())
 }
-
-#[tauri::command]
-#[specta::specta]
-async fn get_stop_step(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str) -> Result<bool> {
-    let crawler = state.read().await;
-    Ok(crawler.get_stop_step(step_name.to_string()).await?)
-}
-
-
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -110,10 +74,7 @@ pub fn run() {
         load_crawler,
         run_step,
         save_setting,
-        stop_step,
-        get_stop_step,
-        // run_output_html,
-        // stop_output_html
+        update_state,
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -143,10 +104,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(RwLock::new(Crawler::new())))
-        // .manage(Arc::new(AtomicBool::new(false)))
-        // .manage(Arc::new(Notify::new()))
         .plugin(tauri_plugin_opener::init())
-        // .invoke_handler(tauri::generate_handler![greet])
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

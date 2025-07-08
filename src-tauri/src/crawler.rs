@@ -3,8 +3,8 @@ use std::io::Write;
 use std::path::{absolute, Path, PathBuf};
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 
 use async_stream::stream;
 use chardetng::EncodingDetector;
@@ -32,6 +32,10 @@ type ItemData = HashMap<String, String>;
 type Result<T> = std::result::Result<T, ApiError>;
 
 type Shared<T> = Arc<RwLock<T>>;
+
+const STEP_RUNNING: u8 = 0;
+const STEP_PAUSED: u8 = 1;
+const STEP_STOPPED: u8 = 2;
 
 pub struct Crawler {
     pub client: Client,
@@ -139,8 +143,10 @@ impl Crawler {
             let concurrency_limit = step.concurrency_limit;
             let step_handle = StepHandle {
                 name: nm.clone(),
-                stop: Arc::new(AtomicBool::new(false)),
                 semaphore: Arc::new(Semaphore::new(concurrency_limit)),
+                // stop: Arc::new(AtomicBool::new(false)),
+                state: Arc::new(AtomicU8::new(STEP_RUNNING)),
+                control: Arc::new((Mutex::new(()), Condvar::new()))
             };
             step_handles.insert(nm.clone(), step_handle);
         }
@@ -153,28 +159,18 @@ impl Crawler {
         Ok(())
     }
 
-    pub async fn stop_step(&self, step_name: String, val: bool) -> Result<()> {
+    pub async fn update_state(&self, step_name: String, val: u8) -> Result<()> {
         let step_handles = self.step_handles.read().await;
         let step_handle = step_handles
             .get(&step_name)
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
-        let stop = step_handle.stop.clone();
-        stop.store(val, Ordering::SeqCst);
+        let state = step_handle.state.clone();
+        state.store(val, Ordering::SeqCst);
+        let control = step_handle.control.clone();
+        let (_, cvar) = &*control;
+        cvar.notify_all();
         Ok(())
     }
-
-    pub async fn get_stop_step(&self, step_name: String) -> Result<bool> {
-        let step_handles_arc = self.step_handles.clone();
-        let step_handles = step_handles_arc.read().await;
-        let step_handle = step_handles
-            .get(&step_name)
-            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
-
-        let stop = step_handle.stop.clone();
-        let is_stop = stop.load(Ordering::SeqCst);
-        Ok(is_stop)
-    }
-
 
     pub async fn run_step(&self, step_name: String, window: tauri::Window) -> Result<()> {
         println!("Start Step: {}", &step_name);
@@ -222,8 +218,13 @@ impl Crawler {
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let semaphore = step_handle.semaphore.clone();
 
-        let stop = step_handle.stop.clone();
-        stop.store(false, Ordering::SeqCst);
+        // let stop = step_handle.stop.clone();
+        // stop.store(false, Ordering::SeqCst);
+
+        let state = step_handle.state.clone();
+        state.store(STEP_RUNNING, Ordering::SeqCst);
+        let control = step_handle.control.clone();
+
 
         let mut handles = Vec::new();
 
@@ -233,9 +234,29 @@ impl Crawler {
             let semaphore = semaphore.clone();
             let Ok(permit) = semaphore.acquire_owned().await else { return Err(ApiError::CrawlerError("err semaphore.acquire_owned".to_string())); };
 
-            if stop.load(Ordering::SeqCst) {
-                println!("paused");
-                break;
+            // if stop.load(Ordering::SeqCst) {
+            //     println!("stop");
+            //     break;
+            // }
+
+            match state.load(Ordering::SeqCst) {
+                STEP_RUNNING => {
+                    println!("STEP_RUNNING");
+                }
+                STEP_PAUSED => {
+                    println!("STEP_PAUSED");
+                    let (lock, cvar) = &*control;
+                    let _guard = cvar
+                        .wait_while(lock.lock().unwrap(), |_| {
+                            state.load(Ordering::SeqCst) == STEP_PAUSED
+                        })
+                        .unwrap();
+                }
+                STEP_STOPPED => {
+                    println!("STEP_STOPPED");
+                    break;
+                }
+                _ => {}
             }
 
             let window_clone = window.clone();
@@ -644,10 +665,10 @@ async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     let mut file = std::fs::File::create(p_tmp)?;
     file.write_all(html_content.as_bytes())?;
     std::fs::rename(p_tmp, p)?;
-    // use tokio::time::{sleep, Duration};
-    // println!("sleep start");
-    // sleep(Duration::from_secs(5)).await;
-    // println!("sleep end");
+    use tokio::time::{sleep, Duration};
+    println!("sleep start");
+    sleep(Duration::from_secs(5)).await;
+    println!("sleep end");
     Ok(())
 }
 

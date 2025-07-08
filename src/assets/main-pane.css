@@ -124,3 +124,7 @@ html, body, #root {
 .fa-circle-play:hover { transform: var(--scale); color: var(--hover-color);}
 .fa-circle-stop { color: var(--icon-color); margin-right: 5px;}
 .fa-circle-stop:hover { transform: var(--scale); color: var(--hover-color);}
+.fa-circle-pause { color: var(--icon-color); margin-right: 5px;}
+.fa-circle-pause:hover { transform: var(--scale); color: var(--hover-color);}
+.fa-circle-chevron-right { color: var(--icon-color); margin-right: 5px;}
+.fa-circle-chevron-right:hover { transform: var(--scale); color: var(--hover-color);}

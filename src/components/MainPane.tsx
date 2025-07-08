@@ -213,16 +213,11 @@ function DroppableContainer({ id, children }: {
   id: string;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  const { setNodeRef } = useDroppable({ id });
 
   return (
     <div
       ref={setNodeRef}
-      style={{
-        // border: "1px dashed #aaa",
-        // padding: "2px",
-        // backgroundColor: isOver ? "#f0f8ff" : "#fafafa",
-      }}
     >
       {children}
     </div>
