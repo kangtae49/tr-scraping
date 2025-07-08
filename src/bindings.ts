@@ -77,7 +77,6 @@ async getStopStep(stepName: string) : Promise<Result<boolean, ApiError>> {
 /** user-defined types **/
 
 export type ApiError = { CrawlerError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string } | { GlobError: string }
-export type Edge = { a: string; b: string }
 export type HtmlJob = { json_map: Partial<{ [key in string]: ([string, string])[] }>; output_template_file: string; output_template: string | null; filename: string; output: string }
 export type HttpJob = { url: string; method: string; header: Partial<{ [key in string]: string }>; filename: string; output: string }
 export type IterGlobJsonPattern = { glob_pattern: string; item_pattern: string; env_pattern: Partial<{ [key in string]: string }> }
@@ -88,7 +87,7 @@ export type IterRange = { name: string; offset: string; take: string }
 export type IterRangePattern = { name: string; glob_pattern: string; offset: string; take: string }
 export type Job = { HttpJob: HttpJob } | { HtmlJob: HtmlJob }
 export type OutputHtml = { name: string; task_iters: TaskIter[]; html: HtmlJob; output: string; concurrency_limit: number }
-export type Setting = { env: Partial<{ [key in string]: string }>; header: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }>; edges: Edge[]; output_html: OutputHtml | null }
+export type Setting = { env: Partial<{ [key in string]: string }>; header: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }>; output_html: OutputHtml | null }
 export type Step = { name: string; task_iters: TaskIter[]; job: Job; concurrency_limit: number }
 export type TaskIter = { Range: IterRange } | { Pattern: IterPattern } | { RangePattern: IterRangePattern } | { Vec: IterList } | { GlobJsonPattern: IterGlobJsonPattern } | { GlobJsonRangePattern: IterJsonRangePattern }
 export type TextContent = { path: string; mimetype: string; enc?: string | null; text?: string | null }

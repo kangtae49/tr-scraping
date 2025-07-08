@@ -21,12 +21,6 @@
         "$ref": "#/$defs/Step"
       }
     },
-    "edges": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Edge"
-      }
-    },
     "output_html": {
       "anyOf": [
         {
@@ -41,8 +35,7 @@
   "required": [
     "env",
     "header",
-    "steps",
-    "edges"
+    "steps"
   ],
   "$defs": {
     "Step": {
@@ -374,21 +367,6 @@
         "output_template_file",
         "filename",
         "output"
-      ]
-    },
-    "Edge": {
-      "type": "object",
-      "properties": {
-        "a": {
-          "type": "string"
-        },
-        "b": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "a",
-        "b"
       ]
     },
     "OutputHtml": {

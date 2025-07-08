@@ -14,7 +14,6 @@ use glob::glob;
 use handlebars::Handlebars;
 use mime::Mime;
 use mime_guess::from_path;
-use petgraph::graph::Graph;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, RequestBuilder};
 use sanitize_filename::sanitize;
@@ -26,7 +25,7 @@ use tokio::sync::{RwLock};
 use tokio_stream::{Stream, StreamExt};
 
 
-use crate::models::{ApiError, Edge, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob, StepNotify};
+use crate::models::{ApiError, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob, StepNotify};
 
 type ItemData = HashMap<String, String>;
 
@@ -40,7 +39,6 @@ pub struct Crawler {
     pub header: Shared<HashMap<String, String>>,
     pub steps: Shared<HashMap<String, Step>>,
     pub step_handles: Shared<HashMap<String, StepHandle>>,
-    pub dag: Shared<Graph<String, ()>>,
 }
 
 impl Crawler {
@@ -51,9 +49,6 @@ impl Crawler {
             header: Arc::new(RwLock::new(HashMap::new())),
             steps: Arc::new(RwLock::new(HashMap::new())),
             step_handles: Arc::new(RwLock::new(HashMap::new())),
-            dag: Arc::new(RwLock::new(Graph::<String, ()>::new())),
-            // output_html: Arc::new(RwLock::new(None)),
-            // output_html_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -150,31 +145,10 @@ impl Crawler {
             step_handles.insert(nm.clone(), step_handle);
         }
 
-        let mut dag = Graph::<String, ()>::new();
-        let edges: Vec<Edge> = setting.edges;
-        for edge in edges.iter() {
-            let edge_a = &edge.a;
-            let edge_b = &edge.b;
-            if exist_node(&dag, edge_a) {
-                dag.add_node(edge_a.clone());
-            }
-            if exist_node(&dag, edge_b) {
-                dag.add_node(edge_b.clone());
-            }
-        }
-        for edge in edges.iter() {
-            let edge_a = &edge.a;
-            let edge_b = &edge.b;
-            if let (Some(a), Some(b)) = (find_node(&dag, edge_a), find_node(&dag, edge_b)) {
-                dag.add_edge(a, b, ());
-            }
-        }
-
         self.assign(&self.env, setting.env).await;
         self.assign(&self.header, setting.header).await;
         self.assign(&self.steps, setting.steps).await;
         self.assign(&self.step_handles, step_handles).await;
-        self.assign(&self.dag, dag).await;
 
         Ok(())
     }
@@ -768,16 +742,6 @@ fn get_handlebars_safe_dir(s: &str, env: &HashMap<String, String>) -> Result<Str
     let mut handlebars = Handlebars::new();
     handlebars.register_template_string("output", s)?;
     Ok(handlebars.render("output", &new_env)?)
-}
-
-fn exist_node(dag: &Graph<String, ()>, edge: &String) -> bool {
-    !dag.node_indices()
-        .any(|idx| dag.node_weight(idx).map_or(false, |w| w == edge))
-}
-
-fn find_node(dag: &Graph<String, ()>, edge: &String) -> Option<petgraph::graph::NodeIndex> {
-    dag.node_indices()
-        .find(|&idx| dag.node_weight(idx).map_or(false, |w| w == edge))
 }
 
 

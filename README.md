@@ -260,8 +260,7 @@ pnpm tauri build
       }},
       "concurrency_limit": 10
     }
-  },
-  "edges": []
+  }
 }
 
 

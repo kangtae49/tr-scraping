@@ -137,7 +137,6 @@ pub struct Setting {
     pub env: HashMap<String, String>,
     pub header: HashMap<String, String>,
     pub steps: HashMap<String, Step>,
-    pub edges: Vec<Edge>,
     pub output_html: Option<OutputHtml>
 }
 
@@ -148,11 +147,6 @@ pub struct StepHandle {
     pub stop: Arc<AtomicBool>,
 }
 
-#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub struct Edge {
-    pub a: String,
-    pub b: String,
-}
 
 #[allow(dead_code)]
 #[skip_serializing_none]
