@@ -89,7 +89,6 @@ function MainPane(): React.JSX.Element {
       setStepStatusNotify(event.payload);
     });
 
-    // cleanup: 컴포넌트 unmount 시 리스너 제거
     return () => {
       unlistenProgress.then((f) => f());
       unlistenStatus.then((f) => f());
@@ -155,8 +154,9 @@ function MainPane(): React.JSX.Element {
               <div className="steps">
                 {
                   Object.entries(setting.steps).map(([key, _step])  => {
+                    const isDrop = dropSteps.some((v) => v.split(':').slice(1).join(':') == key);
                     return (
-                      <DraggableStep key={key} id={{type: 'source', stepName: key}} />
+                      <DraggableStep key={key} id={{type: 'source', stepName: key}} isDrop={isDrop} />
                     )
                   })
                 }
@@ -170,7 +170,7 @@ function MainPane(): React.JSX.Element {
                     <SortableContext items={dropSteps} strategy={horizontalListSortingStrategy}>
                       <div className="dropable steps">
                         {dropSteps.length === 0 ? (
-                          <p style={{ color: "#888" }}>Drag Step</p>
+                          <p>Drag Step</p>
                         ): (
                           dropSteps.map((item) => (
                             <DroppableStep key={item} id={{type: 'drop', stepName: item.split(':').slice(1).join(':')}} />
@@ -219,10 +219,9 @@ function DroppableContainer({ id, children }: {
     <div
       ref={setNodeRef}
       style={{
-        border: "2px dashed #aaa",
-        // padding: "20px",
-        // minHeight: "200px",
-        backgroundColor: isOver ? "#f0f8ff" : "#fafafa",
+        // border: "1px dashed #aaa",
+        // padding: "2px",
+        // backgroundColor: isOver ? "#f0f8ff" : "#fafafa",
       }}
     >
       {children}

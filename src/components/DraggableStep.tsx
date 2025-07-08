@@ -8,6 +8,7 @@ import { DragStep } from "@/models.ts";
 
 type Props = {
   id: DragStep
+  isDrop: boolean
 }
 function DraggableStep(props: Props) {
   const {attributes, listeners, setNodeRef, transform} = useDraggable({
@@ -20,10 +21,10 @@ function DraggableStep(props: Props) {
 
 
   return (
-    <div className="step" ref={setNodeRef} style={style} {...listeners} {...attributes}>
+    <div className={`step ${props.isDrop ? "drop" : ""}`} ref={setNodeRef} style={style} {...attributes}>
       <div className="btn" onClick={() => api.runStep(props.id.stepName)}><Icon icon={faCirclePlay} /></div>
       <div className="btn" onClick={() => api.stopStep(props.id.stepName)}><Icon icon={faCircleStop} /></div>
-      <div className="label">Run {props.id.stepName}</div>
+      <div className="label" {...listeners} >{props.id.stepName}</div>
     </div>
   );
 }
