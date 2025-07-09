@@ -23,6 +23,7 @@ function MainPane(): React.JSX.Element {
   const setSettingPath = useSettingPathStore((state) => state.setSettingPath);
   const [stepProgressNotify, setStepProgressNotify] = useState<StepNotify | undefined>(undefined);
   const [stepStatusNotify, setStepStatusNotify] = useState<StepNotify | undefined>(undefined);
+  const [stepErrorNotify, setStepErrorNotify] = useState<StepNotify | undefined>(undefined);
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [dropSteps, setDropSteps] = useState<string[]>([]);
 
@@ -89,9 +90,14 @@ function MainPane(): React.JSX.Element {
       setStepStatusNotify(event.payload);
     });
 
+    const unlistenError = listen<StepNotify>("error", (event) => {
+      setStepErrorNotify(event.payload);
+    });
+
     return () => {
       unlistenProgress.then((f) => f());
       unlistenStatus.then((f) => f());
+      unlistenError.then((f) => f());
     };
   }, []);
 
@@ -193,6 +199,11 @@ function MainPane(): React.JSX.Element {
                 <>
                   <div className="message">{stepProgressNotify.message}</div>
                 </>
+            )}
+            {stepErrorNotify && (
+              <>
+                <div className="message">{stepErrorNotify.message}</div>
+              </>
             )}
           </div>
         </div>

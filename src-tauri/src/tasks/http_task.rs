@@ -8,7 +8,7 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, RequestBuilder};
 use sanitize_filename::sanitize;
 use serde_json::Value;
-use crate::models::{HttpJob, HttpTask, Task};
+use crate::models::{ApiError, HttpJob, HttpTask, Task};
 use crate::models::Result;
 use crate::utils::{get_handlebars, get_handlebars_safe_dir};
 
@@ -79,7 +79,7 @@ pub async fn run_task_http(task: HttpTask) -> Result<()> {
 
     if !res.status().is_success() {
         println!("run_task err: {:?} {:?}", res.status(), &task);
-        return Ok(());
+        return Err(ApiError::CrawlerError(format!("status: {:?} {:?}", res.status(), &task.url)));
     }
 
     let mut charset: Option<String> = None;

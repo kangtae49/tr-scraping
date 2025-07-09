@@ -240,6 +240,13 @@ impl Crawler {
             let handle = tokio::task::spawn(async move {
                 if let Err(e) = run_task(task.clone()).await {
                     eprintln!("Error: {:?}", e);
+                    let notify = StepNotify {
+                        name: "error".to_string(),
+                        status: "".to_string(),
+                        message: format!("{:?}", e)
+                    };
+                    let window_clone = window_clone.clone();
+                    window_clone.emit("error", notify).unwrap();
                 }
 
                 let task_notify = match task.clone() {
@@ -282,8 +289,6 @@ impl Crawler {
         println!("End Step: {}", &step_name);
         Ok(())
     }
-
-
 
 }
 
