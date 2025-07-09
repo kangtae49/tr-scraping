@@ -8,7 +8,15 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, Condvar, Mutex};
 use thiserror::Error;
-use tokio::sync::{Semaphore};
+use tokio::sync::{RwLock, Semaphore};
+pub type Result<T> = std::result::Result<T, ApiError>;
+pub type ItemData = HashMap<String, String>;
+
+pub type Shared<T> = Arc<RwLock<T>>;
+
+pub const STEP_RUNNING: u8 = 0;
+pub const STEP_PAUSED: u8 = 1;
+pub const STEP_STOPPED: u8 = 2;
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub enum TaskIter {

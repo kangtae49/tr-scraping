@@ -1,41 +1,35 @@
 use std::collections::{HashMap};
-use std::io::Write;
-use std::path::{absolute, Path, PathBuf};
+use std::path::{absolute, PathBuf};
 use std::pin::Pin;
-use std::str::FromStr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use async_stream::stream;
 use chardetng::EncodingDetector;
-use chrono::{DateTime, Local, Utc};
 use encoding_rs::Encoding;
-use glob::glob;
-use handlebars::Handlebars;
-use mime::Mime;
 use mime_guess::from_path;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::{Client, RequestBuilder};
-use sanitize_filename::sanitize;
-use serde_json::Value;
-use tauri::Emitter;
+use reqwest::{Client};
 use tokio::io::{AsyncReadExt};
 use tokio::sync::Semaphore;
 use tokio::sync::{RwLock};
 use tokio_stream::{Stream, StreamExt};
+use tauri::Emitter;
 
+use crate::tasks::http_task::{run_task_http, to_http_task};
+use crate::tasks::html_task::{run_task_html, to_html_task};
+use crate::models::{Result, ApiError, IterRange,
+                    Job, Setting, Step, StepHandle, TaskIter,
+                    TextContent, Task, StepNotify,
+                    Shared, ItemData,
+                    STEP_RUNNING, STEP_STOPPED, STEP_PAUSED
+};
 
-use crate::models::{ApiError, IterGlobJsonPattern, IterJsonRangePattern, IterList, IterPattern, IterRange, IterRangePattern, Job, Setting, Step, StepHandle, HttpTask, HtmlTask, TaskIter, TextContent, Task, HttpJob, HtmlJob, StepNotify};
-
-type ItemData = HashMap<String, String>;
-
-type Result<T> = std::result::Result<T, ApiError>;
-
-type Shared<T> = Arc<RwLock<T>>;
-
-const STEP_RUNNING: u8 = 0;
-const STEP_PAUSED: u8 = 1;
-const STEP_STOPPED: u8 = 2;
+use crate::iters::vec_iter::get_iter_vec;
+use crate::iters::range_iter::get_iter_range;
+use crate::iters::pattern_iter::get_iter_pattern;
+use crate::iters::range_pattern_iter::get_iter_range_pattern;
+use crate::iters::glob_json_range_pattern_iter::get_iter_glob_json_range_pattern;
+use crate::iters::glob_json_pattern_iter::get_iter_glob_json_pattern;
 
 pub struct Crawler {
     pub client: Client,
@@ -182,18 +176,14 @@ impl Crawler {
         let window_clone = window.clone();
         window_clone.emit("status", notify).unwrap();
 
-        let steps_arc = Arc::clone(&self.steps);
-        let steps = steps_arc.read().await;
-        let env_arc = Arc::clone(&self.env);
-        let header_arc = Arc::clone(&self.header);
-
+        let steps = self.steps.read().await;
         let step = steps
             .get(&step_name)
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let mut job = step.job.clone();
-        let env_lock = env_arc.read().await;
+        let env_lock = self.env.read().await;
         let env = env_lock.clone();
-        let header_lock = header_arc.read().await;
+        let header_lock = self.header.read().await;
         let g_header = header_lock.clone();
 
         let mut task_iters = step.task_iters.clone();
@@ -204,13 +194,8 @@ impl Crawler {
                 take: "1".to_string(),
             }))
         }
-        match &mut job {
-            Job::HttpJob(_http_job) => {}
-            Job::HtmlJob(html_job) => {
-                let Ok(html_template) = std::fs::read_to_string(&html_job.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
-                html_job.output_template = Some(html_template);
-            }
-        }
+
+        update_job(&mut job).await?;
 
         let step_handles = self.step_handles.read().await;
         let step_handle = step_handles
@@ -218,13 +203,9 @@ impl Crawler {
             .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
         let semaphore = step_handle.semaphore.clone();
 
-        // let stop = step_handle.stop.clone();
-        // stop.store(false, Ordering::SeqCst);
-
         let state = step_handle.state.clone();
         state.store(STEP_RUNNING, Ordering::SeqCst);
         let control = step_handle.control.clone();
-
 
         let mut handles = Vec::new();
 
@@ -233,11 +214,6 @@ impl Crawler {
             println!("iter: {:?}", vals);
             let semaphore = semaphore.clone();
             let Ok(permit) = semaphore.acquire_owned().await else { return Err(ApiError::CrawlerError("err semaphore.acquire_owned".to_string())); };
-
-            // if stop.load(Ordering::SeqCst) {
-            //     println!("stop");
-            //     break;
-            // }
 
             match state.load(Ordering::SeqCst) {
                 STEP_RUNNING => {
@@ -260,7 +236,7 @@ impl Crawler {
             }
 
             let window_clone = window.clone();
-            let task = self.to_task(job.clone(), cur_env, g_header.clone()).await?;
+            let task = to_task(job.clone(), cur_env, self.client.clone(), g_header.clone()).await?;
             let handle = tokio::task::spawn(async move {
                 if let Err(e) = run_task(task.clone()).await {
                     eprintln!("Error: {:?}", e);
@@ -307,66 +283,33 @@ impl Crawler {
         Ok(())
     }
 
-    pub async fn to_task(&self, job: Job, cur_env: HashMap<String, String>, g_header: HashMap<String, String>) -> Result<Task> {
-        match job {
-            Job::HttpJob(http_job) => {self.to_http_task(http_job, cur_env, g_header).await},
-            Job::HtmlJob(html_job) => {self.to_html_task(html_job, cur_env).await},
+
+
+}
+
+async fn update_job(job: &mut Job) -> Result<()>{
+    match job {
+        Job::HttpJob(_http_job) => {}
+        Job::HtmlJob(html_job) => {
+            let Ok(html_template) = std::fs::read_to_string(&html_job.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
+            html_job.output_template = Some(html_template);
         }
     }
+    Ok(())
+}
 
-    pub async fn to_http_task(&self, http_job: HttpJob, cur_env: HashMap<String, String>, g_header: HashMap<String, String>) -> Result<Task> {
-
-        let client = self.client.clone();
-
-        let url = get_handlebars(&http_job.url, &cur_env)?;
-
-        let method = http_job.method.clone();
-
-        let mut header = HeaderMap::new();
-        for (k, v) in g_header.iter() {
-            let nm = HeaderName::from_str(k.as_str())?;
-            let new_v = get_handlebars(v, &cur_env)?;
-            let val = HeaderValue::from_str(&new_v)?;
-            header.insert(nm, val);
-        }
-
-        for (k, v) in http_job.header.iter() {
-            let nm = HeaderName::from_str(k.as_str())?;
-            let new_v = get_handlebars(v, &cur_env)?;
-            let val = HeaderValue::from_str(&new_v)?;
-            header.insert(nm, val);
-        }
-        let folder = get_handlebars_safe_dir(&http_job.output, &cur_env)?;
-        let filename = sanitize(get_handlebars(&http_job.filename, &cur_env)?);
-        let p: PathBuf = Path::new(&folder).join(filename);
-        let save_path = p.to_string_lossy().to_string();
-
-        Ok(Task::HttpTask(HttpTask {
-            client,
-            url,
-            method,
-            header,
-            folder,
-            save_path,
-        }))
+async fn to_task(job: Job, cur_env: HashMap<String, String>, client: Client, g_header: HashMap<String, String>) -> Result<Task> {
+    match job {
+        Job::HttpJob(http_job) => {to_http_task(client, http_job, cur_env, g_header).await},
+        Job::HtmlJob(html_job) => {to_html_task(html_job, cur_env).await},
     }
+}
 
-    pub async fn to_html_task(&self, html_job: HtmlJob, cur_env: HashMap<String, String>) -> Result<Task> {
-        let Some(output_template) = html_job.output_template.clone() else { return Err(ApiError::CrawlerError("no output template".to_string())); };
-
-        let folder = get_handlebars_safe_dir(&html_job.output, &cur_env)?;
-        let filename = sanitize(get_handlebars(&html_job.filename, &cur_env)?);
-        let p: PathBuf = Path::new(&folder).join(filename);
-        let save_path = p.to_string_lossy().to_string();
-        Ok(Task::HtmlTask(HtmlTask {
-            cur_env: cur_env.clone(),
-            html_template: output_template.clone(),
-            json_map: html_job.json_map.clone(),
-            folder,
-            save_path,
-        }))
+async fn run_task(task: Task) -> Result<()> {
+    match task {
+        Task::HttpTask(http_task) => {run_task_http(http_task).await}
+        Task::HtmlTask(html_task) => {run_task_html(html_task).await}
     }
-
 }
 
 
@@ -434,351 +377,3 @@ fn get_iter(task_iter: TaskIter, env: HashMap<String, String>) -> Pin<Box<dyn St
     }
 }
 
-fn get_iter_glob_json_pattern(
-    iter_glob_json_pattern: IterGlobJsonPattern,
-    env: HashMap<String, String>,
-) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream! {
-        let glob_pattern = iter_glob_json_pattern.glob_pattern;
-        let item_pattern = iter_glob_json_pattern.item_pattern;
-        let mut env_pattern = iter_glob_json_pattern.env_pattern;
-
-        let Ok(glob_pattern) = get_handlebars(&glob_pattern, &env) else { return ;};
-        let Ok(item_pattern) = get_handlebars(&item_pattern, &env) else { return ;};
-
-        for (_k, v) in env_pattern.iter_mut() {
-            let Ok(new_val) = get_handlebars(&v, &env) else { continue; };
-            *v = new_val;
-        }
-
-        let Ok(paths) = glob(&glob_pattern) else { return ;};
-        for entry in paths {
-            let Ok(p) = entry else { continue };
-            let Ok(json_str) = std::fs::read_to_string(p) else {
-                continue;
-            };
-            let Ok(json) = serde_json::from_str(&json_str) else {
-                continue;
-            };
-            let Ok(item_vals) = jsonpath_lib::select(&json, &item_pattern) else {
-                continue;
-            };
-            for item in item_vals {
-                let mut env_item = HashMap::new();
-                for (k, v) in env_pattern.iter() {
-                    if let Some(j_val) = get_json_val(item, v) {
-                        env_item.insert(k.to_string(), j_val);
-                    }
-                }
-                yield env_item;
-            }
-        }
-
-    })
-}
-
-fn get_iter_glob_json_range_pattern(
-    iter_glob_json_range_pattern: IterJsonRangePattern,
-    env: HashMap<String, String>,
-) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream! {
-        let name = iter_glob_json_range_pattern.name;
-        let file_pattern = iter_glob_json_range_pattern.file_pattern;
-        let offset_pattern = iter_glob_json_range_pattern.offset_pattern;
-        let take_pattern = iter_glob_json_range_pattern.take_pattern;
-
-        let Ok(file_pattern) = get_handlebars(&file_pattern, &env) else { return ; };
-        let Ok(offset_pattern) = get_handlebars(&offset_pattern, &env) else { return ;};
-        let Ok(take_pattern) = get_handlebars(&take_pattern, &env) else { return; };
-
-        let Ok(mut paths) = glob(&file_pattern) else { return ; };
-        let Some(entry) = paths.next() else { return ; };
-        let Ok(p) = entry else { return ; };
-        let Ok(json_str) = std::fs::read_to_string(p) else { return; };
-        let Ok(json) = serde_json::from_str(&json_str) else { return ; };
-        let offset_str = get_json_val(&json, &offset_pattern).unwrap_or(offset_pattern);
-        let take_str = get_json_val(&json, &take_pattern).unwrap_or(take_pattern);
-        let Ok(offset) = offset_str.parse::<usize>() else { return ;};
-        let Ok(take) = take_str.parse::<usize>() else {return ;};
-
-        let start = offset;
-        let end = offset + take;
-        for i in start..end {
-            yield HashMap::from([(name.to_string(), i.to_string())]);
-        }
-    })
-}
-
-fn get_iter_range(iter_range: IterRange, env: HashMap<String, String>) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream! {
-        let name = iter_range.name;
-        let offset_pattern = iter_range.offset;
-        let take_pattern = iter_range.take;
-        let Ok(offset_str) = get_handlebars(&offset_pattern, &env) else { return ; };
-        let Ok(take_str) = get_handlebars(&take_pattern, &env) else { return ; };
-        let Ok(offset) = offset_str.parse::<usize>() else { return ; };
-        let Ok(take) = take_str.parse::<usize>() else { return ;};
-        let start = offset;
-        let end = offset + take;
-        for i in start..end {
-            yield HashMap::from([(name.to_string(), i.to_string())]);
-        }
-    })
-}
-
-fn get_iter_range_pattern(
-    iter_range_pattern: IterRangePattern,
-    env: HashMap<String, String>,
-) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream! {
-        let name = iter_range_pattern.name;
-        let glob_pattern = iter_range_pattern.glob_pattern;
-        let Ok(file_path) = get_handlebars(&glob_pattern, &env) else { return ; };
-        let Ok(mut offset_str) = get_handlebars(&iter_range_pattern.offset, &env) else { return ;};
-        let Ok(mut take_str) = get_handlebars(&iter_range_pattern.take, &env) else { return ;};
-
-        let Ok(json_str) = std::fs::read_to_string(Path::new(&file_path)) else { return ; };
-        let Ok(json) = serde_json::from_str(&json_str) else { return; };
-        match get_json_val(&json, &offset_str) {
-            Some(val) => {
-                offset_str = val;
-            }
-            None => {}
-        }
-        match get_json_val(&json, &take_str) {
-            Some(val) => {
-                take_str = val;
-            }
-            None => {}
-        }
-
-        let Ok(offset) = offset_str.parse::<usize>() else { return ; };
-        let Ok(take) = take_str.parse::<usize>() else { return ; };
-        let start = offset;
-        let end = offset + take;
-
-        for i in start..end {
-            yield HashMap::from([(name.to_string(), i.to_string())]);
-        }
-    })
-}
-
-fn get_json_val(json: &Value, path: &str) -> Option<String> {
-    let Ok(values) = jsonpath_lib::select(json, path) else {
-        return None;
-    };
-    let Some(&val) = values.first() else {
-        return None;
-    };
-    match val {
-        Value::String(s) => Some(s.clone().trim().to_string()),
-        _ => Some(val.to_string().trim().to_string()),
-    }
-}
-
-fn get_iter_pattern(iter_pattern: IterPattern) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream!{
-        let name = iter_pattern.name;
-        let glob_pattern = iter_pattern.glob_pattern;
-        let content_pattern = iter_pattern.content_pattern;
-        if let Ok(paths) = glob(&glob_pattern) {
-            for entry in paths {
-                let Ok(p) = entry else { continue };
-                let Ok(json_str) = std::fs::read_to_string(p) else { continue; };
-                let Ok(json) = serde_json::from_str(&json_str) else { continue; };
-                let Ok(values) = jsonpath_lib::select(&json, &content_pattern) else { continue; };
-                for val in values {
-                    yield HashMap::from([(name.to_string(), val.to_string())]);
-                }
-            }
-        }
-    })
-}
-
-fn get_iter_vec(iter_vec: IterList) -> Pin<Box<dyn Stream<Item = ItemData> + Send>> {
-    Box::pin(stream! {
-        let name = iter_vec.name;
-        for v in iter_vec.val.iter() {
-            yield HashMap::from([(name.clone(), v.clone())]);
-        }
-    })
-}
-
-async fn run_task(task: Task) -> Result<()> {
-    match task {
-        Task::HttpTask(http_task) => {run_task_http(http_task).await}
-        Task::HtmlTask(html_task) => {run_task_html(html_task).await}
-    }
-}
-
-async fn run_task_html(mut task: HtmlTask) -> Result<()> {
-    let folder = task.folder.clone();
-    let p_folder = Path::new(&folder);
-    if !p_folder.exists() {
-        std::fs::create_dir_all(Path::new(&folder))?;
-    }
-
-    let save_path = task.save_path.clone();
-    let tmp_path = format!("{}.tmp", &save_path);
-    let p = Path::new(&save_path);
-    let p_tmp = Path::new(tmp_path.as_str());
-    if p.exists() {
-        // return Ok(());
-        let _ = std::fs::remove_file(p).map_err(|e| println!("{:?}", e));
-    }
-
-    if p_tmp.exists() {
-        let _ = std::fs::remove_file(p_tmp).map_err(|e| println!("{:?}", e));
-    }
-
-    let template = task.html_template.clone();
-
-    for (k, v) in task.json_map.iter() {
-        let Some(json_str) = task.cur_env.get(k) else { continue };
-        let Ok(vec_json) = serde_json::from_str::<Vec<Value>>(json_str) else { continue };
-        let mut s = "".to_string();
-        for json_val in vec_json {
-            s += "<div class=\"row\">";
-            for (sk, sv) in v.iter() {
-                let Some(mut vv) = get_json_val(&json_val, sv) else {continue};
-                if sk.to_uppercase().contains("DATE") {
-                    if let Ok(dt) = from_unix_time(vv.clone()) {
-                        vv = dt;
-                    }
-                }
-                s += &format!("<div class=\"{}\">{}</div>", sk, vv);
-            }
-            s += "</div>";
-        }
-        task.cur_env.insert(k.clone(), s);
-    }
-    let mut task_env = task.cur_env.clone();
-    for (k, v) in task_env.iter_mut() {
-        if k.to_uppercase().contains("DATE") {
-            if let Ok(dt) = from_unix_time(v.clone()) {
-                *v = dt;
-            }
-        }
-    }
-
-    let html_content = get_handlebars(&template, &task_env)?;
-    let mut file = std::fs::File::create(p_tmp)?;
-    file.write_all(html_content.as_bytes())?;
-    std::fs::rename(p_tmp, p)?;
-    // use tokio::time::{sleep, Duration};
-    // println!("sleep start");
-    // sleep(Duration::from_secs(5)).await;
-    // println!("sleep end");
-    Ok(())
-}
-
-async fn run_task_http(task: HttpTask) -> Result<()> {
-    let folder = task.folder.clone();
-    let p_folder = Path::new(&folder);
-    if !p_folder.exists() {
-        std::fs::create_dir_all(Path::new(&folder))?;
-    }
-
-    let save_path = task.save_path.clone();
-    let tmp_path = format!("{}.tmp", &save_path);
-    let p = Path::new(&save_path);
-    let p_tmp = Path::new(tmp_path.as_str());
-    if p.exists() {
-        return Ok(());
-    }
-
-    if p_tmp.exists() {
-        let _ = std::fs::remove_file(p_tmp).map_err(|e| println!("{:?}", e));
-    }
-
-    let mut req_builder: RequestBuilder;
-    if task.method == "POST" {
-        req_builder = task.client.post(&task.url);
-    } else {
-        req_builder = task.client.get(&task.url);
-    }
-    req_builder = req_builder.headers(task.header.clone());
-    let res = req_builder.send().await?;
-
-    if !res.status().is_success() {
-        println!("run_task err: {:?} {:?}", res.status(), &task);
-        return Ok(());
-    }
-
-    let mut charset: Option<String> = None;
-    let mut mime_type: Option<String> = None;
-    let content_type = res
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
-    println!("content_type: {:?}", content_type);
-    if let Some(content_type) = &content_type {
-        charset = content_type
-            .clone()
-            .split("charset=")
-            .nth(1)
-            .and_then(|s| Some(s.to_string()));
-        if let Ok(mime) = content_type.clone().parse::<Mime>() {
-            mime_type = Some(mime.essence_str().to_string());
-        };
-    }
-    // let body = res.text().await?;
-    // println!("body: {:?}", &body);
-    let bytes = res.bytes().await?;
-
-
-    if Some("application/json".to_string()) == mime_type {
-        let label = charset.unwrap_or("utf-8".to_string());
-        let (text, _, _) = Encoding::for_label(label.as_bytes())
-            .unwrap_or(encoding_rs::UTF_8)
-            .decode(&bytes);
-
-        let json_value: Value = serde_json::from_str(&text)?;
-        let formatted = serde_json::to_string_pretty(&json_value)?;
-
-        let mut file = std::fs::File::create(p_tmp)?;
-        file.write_all(formatted.as_bytes())?;
-        std::fs::rename(p_tmp, p)?;
-    } else {
-        let mut file = std::fs::File::create(p_tmp)?;
-        file.write_all(&bytes)?;
-        std::fs::rename(p_tmp, p)?;
-    }
-
-    Ok(())
-}
-
-fn get_handlebars(s: &str, env: &HashMap<String, String>) -> Result<String> {
-    let mut handlebars = Handlebars::new();
-    handlebars.register_template_string("output", s)?;
-    Ok(handlebars.render("output", &env)?)
-}
-
-fn get_handlebars_safe_dir(s: &str, env: &HashMap<String, String>) -> Result<String> {
-    let mut new_env = env.clone();
-    for (_k, v) in new_env.iter_mut() {
-        *v = sanitize(v.clone());
-    }
-    let mut handlebars = Handlebars::new();
-    handlebars.register_template_string("output", s)?;
-    Ok(handlebars.render("output", &new_env)?)
-}
-
-
-fn from_unix_time(s: String) -> Result<String> {
-    let timestamp_ms: i64 = s.parse::<i64>()?;
-    let timestamp_sec = timestamp_ms / 1000;
-    let timestamp_nano = (timestamp_ms % 1000) * 1_000_000;
-
-    let Some(datetime_utc) = DateTime::<Utc>::from_timestamp(timestamp_sec, timestamp_nano as u32) else { return Ok(s) } ;
-
-    let datetime_local = datetime_utc.with_timezone(&Local);
-    Ok(datetime_local.format("%Y-%m-%d %H:%M:%S").to_string())
-}
-
-pub async fn save_file(file_path: String, txt: String) -> Result<()> {
-    let mut file = std::fs::File::create(file_path)?;
-    file.write_all(txt.as_bytes())?;
-    Ok(())
-}
