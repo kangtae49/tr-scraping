@@ -4,8 +4,10 @@ use std::path::{Path, PathBuf};
 use sanitize_filename::sanitize;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value};
 use specta::Type;
+use mime_guess::from_path;
+
 use crate::models::{ApiError, Result};
 use crate::utils::{get_json_val, from_unix_time, get_handlebars, get_handlebars_safe_dir};
 use crate::tasks::task::Task;
@@ -69,11 +71,43 @@ pub async fn run_task_html(mut task: HtmlTask) -> Result<()> {
 
     let template = task.html_template.clone();
 
+
+
     for (k, v) in task.json_map.iter() {
         let Some(json_str) = task.cur_env.get(k) else { continue };
         let Ok(vec_json) = serde_json::from_str::<Vec<Value>>(json_str) else { continue };
         let mut s = "".to_string();
         for json_val in vec_json {
+            let mut row_map = HashMap::<String, String>::new();
+            for (sk, sv) in v.iter() {
+                let Some(mut vv) = get_json_val(&json_val, sv) else {
+                    row_map.insert(sk.to_string(), sv.clone());
+                    continue
+                };
+                if sk.to_uppercase().contains("DATE") {
+                    if let Ok(dt) = from_unix_time(vv.clone()) {
+                        vv = dt;
+                    }
+                }
+                row_map.insert(sk.to_string(), vv);
+            }
+
+            let mut row_env = task.cur_env.clone();
+            row_env.extend(row_map.clone());
+            s += "<div class=\"row\">\n";
+            for (sk, sv) in row_map.iter() {
+                if sk.starts_with("_") {
+                    continue;
+                }
+                let vv = get_handlebars(sv, &row_env)?;
+                s += &visible_div(sk.clone(), vv.clone());
+                s += "\n";
+                // s += &format!("<div class=\"{}\">{}</div>\n", sk, vv);
+            }
+            s += "</div>\n";
+
+            // from_path(path_str).first_or_octet_stream().to_string()
+            /*
             s += "<div class=\"row\">";
             for (sk, sv) in v.iter() {
                 let Some(mut vv) = get_json_val(&json_val, sv) else {continue};
@@ -85,6 +119,7 @@ pub async fn run_task_html(mut task: HtmlTask) -> Result<()> {
                 s += &format!("<div class=\"{}\">{}</div>", sk, vv);
             }
             s += "</div>";
+             */
         }
         task.cur_env.insert(k.clone(), s);
     }
@@ -106,4 +141,35 @@ pub async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     // sleep(Duration::from_secs(5)).await;
     // println!("sleep end");
     Ok(())
+}
+
+fn visible_div(key: String, name: String) -> String {
+    let mime = from_path(PathBuf::from(&name)).first_or_octet_stream().to_string();
+    if mime.starts_with("image/") {
+        format!(r#"
+        <div class="image {}">
+            <img src="{}" loading="lazy" alt="{}">
+        <div>
+        "#, &key, &name, &name).trim().to_string()
+    } else if mime.starts_with("video/") {
+        format!(r#"
+        <div class="video {}">
+            <audio controls="">
+                <source src="{}" type="{}">
+            </audio>
+        <div>
+        "#, &key, &name, mime).trim().to_string()
+    } else if mime.starts_with("audio/") {
+        format!(r#"
+        <div class="audio {}">
+            <audio controls="">
+                <source src="{}" type="{}">
+            </audio>
+        <div>
+        "#, &key, &name, mime).trim().to_string()
+    } else {
+        format!(r#"
+        <div class="{}">{}</div>
+        "#, &key, &name).trim().to_string()
+    }
 }
