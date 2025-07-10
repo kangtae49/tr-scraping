@@ -2,12 +2,33 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use sanitize_filename::sanitize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::models::{ApiError, HtmlJob, HtmlTask, Task};
+use specta::Type;
+use crate::models::{ApiError, Result};
 use crate::utils::{get_json_val, from_unix_time, get_handlebars, get_handlebars_safe_dir};
+use crate::tasks::task::Task;
 
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
+pub struct HtmlJob {
+    pub json_map: HashMap<String, Vec<(String, String)>>,
+    pub output_template_file: String,
+    pub output_template: Option<String>,
+    pub filename: String,
+    pub output: String,
+}
 
-pub async fn to_html_task(html_job: HtmlJob, cur_env: HashMap<String, String>) -> crate::models::Result<Task> {
+#[derive(Clone, Debug)]
+pub struct HtmlTask {
+    pub cur_env: HashMap<String, String>,
+    pub html_template: String,
+    pub json_map: HashMap<String, Vec<(String, String)>>,
+    pub folder: String,
+    pub save_path: String,
+}
+
+pub async fn to_html_task(html_job: HtmlJob, cur_env: HashMap<String, String>) -> Result<Task> {
     let Some(output_template) = html_job.output_template.clone() else { return Err(ApiError::CrawlerError("no output template".to_string())); };
 
     let folder = get_handlebars_safe_dir(&html_job.output, &cur_env)?;
@@ -23,7 +44,10 @@ pub async fn to_html_task(html_job: HtmlJob, cur_env: HashMap<String, String>) -
     }))
 }
 
-pub async fn run_task_html(mut task: HtmlTask) -> crate::models::Result<()> {
+
+
+
+pub async fn run_task_html(mut task: HtmlTask) -> Result<()> {
     let folder = task.folder.clone();
     let p_folder = Path::new(&folder);
     if !p_folder.exists() {

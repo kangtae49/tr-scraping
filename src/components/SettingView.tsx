@@ -75,7 +75,7 @@ function SettingView(): React.JSX.Element {
         });
     }
 
-  }, [content])
+  }, [content, settingPath])
 
   useEffect(() => {
     if ( content && editorRef && editorRef.current) {

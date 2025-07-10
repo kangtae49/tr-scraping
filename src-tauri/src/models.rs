@@ -1,5 +1,3 @@
-use reqwest::header::HeaderMap;
-use reqwest::Client;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
@@ -9,6 +7,8 @@ use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, Condvar, Mutex};
 use thiserror::Error;
 use tokio::sync::{RwLock, Semaphore};
+use crate::tasks::task::Job;
+
 pub type Result<T> = std::result::Result<T, ApiError>;
 pub type ItemData = HashMap<String, String>;
 
@@ -71,28 +71,7 @@ pub struct IterList {
     pub val: Vec<String>,
 }
 
-#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub enum Job {
-    HttpJob(HttpJob),
-    HtmlJob(HtmlJob)
-}
-#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub struct HttpJob {
-    pub url: String,
-    pub method: String,
-    pub header: HashMap<String, String>,
-    pub filename: String,
-    pub output: String,
-}
 
-#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub struct HtmlJob {
-    pub json_map: HashMap<String, Vec<(String, String)>>,
-    pub output_template_file: String,
-    pub output_template: Option<String>,
-    pub filename: String,
-    pub output: String,
-}
 
 
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
@@ -103,49 +82,12 @@ pub struct Step {
     pub concurrency_limit: usize,
 }
 
-#[skip_serializing_none]
-#[serde_as]
-#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
-pub struct OutputHtml {
-    pub name: String,
-    pub task_iters: Vec<TaskIter>,
-    pub html: HtmlJob,
-    pub output: String,
-    pub concurrency_limit: usize,
-}
-
-#[derive(Clone, Debug)]
-pub enum Task {
-    HttpTask(HttpTask),
-    HtmlTask(HtmlTask)
-}
-
-#[derive(Clone, Debug)]
-pub struct HttpTask {
-    pub client: Client,
-    pub url: String,
-    pub method: String,
-    pub header: HeaderMap,
-    pub folder: String,
-    pub save_path: String,
-}
-
-#[derive(Clone, Debug)]
-pub struct HtmlTask {
-    pub cur_env: HashMap<String, String>,
-    pub html_template: String,
-    pub json_map: HashMap<String, Vec<(String, String)>>,
-    pub folder: String,
-    pub save_path: String,
-}
-
 #[serde_as]
 #[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct Setting {
     pub env: HashMap<String, String>,
     pub header: HashMap<String, String>,
     pub steps: HashMap<String, Step>,
-    pub output_html: Option<OutputHtml>
 }
 
 pub struct StepHandle {

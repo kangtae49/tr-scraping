@@ -17,9 +17,11 @@ use tauri::Emitter;
 
 use crate::tasks::http_task::{run_task_http, to_http_task};
 use crate::tasks::html_task::{run_task_html, to_html_task};
+use crate::tasks::shell_task::{run_task_shell, to_shell_task};
+use crate::tasks::task::{Job, Task};
 use crate::models::{Result, ApiError, IterRange,
-                    Job, Setting, Step, StepHandle, TaskIter,
-                    TextContent, Task, StepNotify,
+                    Setting, Step, StepHandle, TaskIter,
+                    TextContent, StepNotify,
                     Shared, ItemData,
                     STEP_RUNNING, STEP_STOPPED, STEP_PAUSED
 };
@@ -264,6 +266,13 @@ impl Crawler {
                             message: html_task.save_path.clone()
                         }
                     }
+                    Task::ShellTask(shell_task) => {
+                        StepNotify {
+                            name: "progress".to_string(),
+                            status: "".to_string(),
+                            message: format!("{} {:?}", shell_task.shell, shell_task.args)
+                        }
+                    }
                 };
                 window_clone.emit(&task_notify.name.clone(), task_notify.clone()).unwrap();
                 drop(permit);
@@ -299,14 +308,16 @@ async fn update_job(job: &mut Job) -> Result<()>{
             let Ok(html_template) = std::fs::read_to_string(&html_job.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
             html_job.output_template = Some(html_template);
         }
+        Job::ShellJob(_shell_job) => {}
     }
     Ok(())
 }
 
 async fn to_task(job: Job, cur_env: HashMap<String, String>, client: Client, g_header: HashMap<String, String>) -> Result<Task> {
     match job {
-        Job::HttpJob(http_job) => {to_http_task(client, http_job, cur_env, g_header).await},
+        Job::HttpJob(http_job) => {to_http_task(http_job, cur_env, client, g_header).await},
         Job::HtmlJob(html_job) => {to_html_task(html_job, cur_env).await},
+        Job::ShellJob(shell_job) => {to_shell_task(shell_job, cur_env).await},
     }
 }
 
@@ -314,6 +325,7 @@ async fn run_task(task: Task) -> Result<()> {
     match task {
         Task::HttpTask(http_task) => {run_task_http(http_task).await}
         Task::HtmlTask(html_task) => {run_task_html(html_task).await}
+        Task::ShellTask(shell_task) => {run_task_shell(shell_task).await}
     }
 }
 

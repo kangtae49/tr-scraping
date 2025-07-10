@@ -7,14 +7,36 @@ use mime::Mime;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, RequestBuilder};
 use sanitize_filename::sanitize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::models::{ApiError, HttpJob, HttpTask, Task};
+use specta::Type;
+use crate::models::ApiError;
 use crate::models::Result;
 use crate::utils::{get_handlebars, get_handlebars_safe_dir};
+use crate::tasks::task::Task;
 
-pub async fn to_http_task(client: Client, http_job: HttpJob, cur_env: HashMap<String, String>, g_header: HashMap<String, String>) -> Result<Task> {
+#[derive(Type, Serialize, Deserialize, JsonSchema, Clone, Debug)]
+pub struct HttpJob {
+    pub url: String,
+    pub method: String,
+    pub header: HashMap<String, String>,
+    pub filename: String,
+    pub output: String,
+}
 
-    // let client = self.client.clone();
+#[derive(Clone, Debug)]
+pub struct HttpTask {
+    pub client: Client,
+    pub url: String,
+    pub method: String,
+    pub header: HeaderMap,
+    pub folder: String,
+    pub save_path: String,
+}
+
+
+pub async fn to_http_task(http_job: HttpJob, cur_env: HashMap<String, String>, client: Client, g_header: HashMap<String, String>) -> Result<Task> {
 
     let url = get_handlebars(&http_job.url, &cur_env)?;
 

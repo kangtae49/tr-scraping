@@ -20,16 +20,6 @@
       "additionalProperties": {
         "$ref": "#/$defs/Step"
       }
-    },
-    "output_html": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/OutputHtml"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "required": [
@@ -291,6 +281,18 @@
             "HtmlJob"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ShellJob": {
+              "$ref": "#/$defs/ShellJob"
+            }
+          },
+          "required": [
+            "ShellJob"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -369,36 +371,30 @@
         "output"
       ]
     },
-    "OutputHtml": {
+    "ShellJob": {
       "type": "object",
       "properties": {
-        "name": {
+        "shell": {
           "type": "string"
         },
-        "task_iters": {
+        "args": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TaskIter"
+            "type": "string"
           }
         },
-        "html": {
-          "$ref": "#/$defs/HtmlJob"
-        },
-        "output": {
+        "working_dir": {
           "type": "string"
         },
-        "concurrency_limit": {
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0
+        "encoding": {
+          "type": "string"
         }
       },
       "required": [
-        "name",
-        "task_iters",
-        "html",
-        "output",
-        "concurrency_limit"
+        "shell",
+        "args",
+        "working_dir",
+        "encoding"
       ]
     }
   }
