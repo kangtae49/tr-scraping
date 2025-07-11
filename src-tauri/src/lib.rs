@@ -9,7 +9,7 @@ use tauri::State;
 use tauri_specta::{collect_commands, Builder};
 use crate::crawler::Crawler;
 use crate::utils::save_file;
-use crate::models::{ApiError, Setting, StepNotify, TextContent};
+use crate::models::{ApiError, Setting, TextContent};
 use tokio::sync::RwLock;
 
 type Result<T> = std::result::Result<T, ApiError>;
@@ -85,6 +85,7 @@ pub fn run() {
         use specta_typescript::BigIntExportBehavior;
         use specta_typescript::Typescript;
         use specta::{TypeCollection};
+        use crate::models::StepNotify;
 
         let mut types = TypeCollection::default();
         types.register::<StepNotify>();
