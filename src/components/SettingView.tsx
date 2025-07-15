@@ -1,9 +1,10 @@
 import React, {useEffect, useRef, useState} from "react";
-import { useSettingPathStore } from "@store/settingPathStore.ts";
 import * as api from '@/api'
 import * as monaco from 'monaco-editor'
 import {Setting} from "@/bindings.ts";
 import {saveSetting} from "@/api";
+import { useSettingPathStore } from "@store/settingPathStore.ts";
+import {useSettingTextStore} from "@store/settingTextStore.ts";
 
 self.MonacoEnvironment = {
   getWorkerUrl(_, label) {
@@ -27,27 +28,29 @@ self.MonacoEnvironment = {
 function SettingView(): React.JSX.Element {
   const settingPath = useSettingPathStore((state) => state.settingPath);
   const setSettingPath = useSettingPathStore((state) => state.setSettingPath);
+  const settingText = useSettingTextStore((state) => state.settingText);
+  const setSettingText = useSettingTextStore((state) => state.setSettingText);
   const editorRef = useRef<HTMLDivElement>(null);
   const monacoEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const [content, setContent] = useState<string | null>(null);
+  // const [content, setContent] = useState<string | null>(null);
+
+  // useEffect(() => {
+  //   if (settingPath) {
+  //     api
+  //       .readTxt(settingPath)
+  //       .then((txtContent) => {
+  //         setContent(txtContent?.text || '')
+  //       })
+  //       .catch((e) => {
+  //         console.error(e)
+  //         setContent('')
+  //       });
+  //   }
+  // }, [settingPath]);
 
   useEffect(() => {
-    if (settingPath) {
-      api
-        .readTxt(settingPath)
-        .then((txtContent) => {
-          setContent(txtContent?.text || '')
-        })
-        .catch((e) => {
-          console.error(e)
-          setContent('')
-        });
-    }
-  }, [settingPath]);
-
-  useEffect(() => {
-    if (settingPath && content) {
-      let setting = JSON.parse(content);
+    if (settingPath && settingText) {
+      let setting = JSON.parse(settingText);
       const dirPath = settingPath.substring(0, settingPath.lastIndexOf('\\') + 1);
       const schemaFile = `${dirPath}\\${setting["$schema"]}`;
       console.log(settingPath);
@@ -75,16 +78,16 @@ function SettingView(): React.JSX.Element {
         });
     }
 
-  }, [content, settingPath])
+  }, [settingText, settingPath])
 
   useEffect(() => {
-    if ( content && editorRef && editorRef.current) {
+    if ( settingText && editorRef && editorRef.current) {
       if (monacoEditorRef?.current) {
         monacoEditorRef.current.dispose()
       }
       monacoEditorRef.current = monaco.editor.create(editorRef.current, {
         // model,
-        value: content,
+        value: settingText,
         // language: 'plaintext',
         language: getMonacoLanguage("json"),
         theme: 'vs-dark',
@@ -96,6 +99,7 @@ function SettingView(): React.JSX.Element {
         const txt = monacoEditorRef.current?.getValue();
         if (txt && settingPath) {
           api.saveSetting(settingPath, txt).then(() => {
+              setSettingText(txt);
               console.log("save ok", settingPath)
             })
             .catch((e) => {
@@ -105,7 +109,7 @@ function SettingView(): React.JSX.Element {
         }
       })
     }
-  }, [content]);
+  }, [settingText]);
 
   return <div className="view-monaco" ref={editorRef} />
 

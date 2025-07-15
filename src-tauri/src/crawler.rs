@@ -15,10 +15,7 @@ use tokio::sync::{RwLock};
 use tokio_stream::{Stream, StreamExt};
 use tauri::Emitter;
 
-use crate::tasks::http_task::{run_task_http, to_http_task};
-use crate::tasks::html_task::{run_task_html, to_html_task};
-use crate::tasks::shell_task::{run_task_shell, to_shell_task};
-use crate::tasks::task::{Job, Task};
+use crate::tasks::task::{Task};
 use crate::models::{Result, ApiError, IterRange,
                     Setting, Step, StepHandle, TaskIter,
                     TextContent, StepNotify,
@@ -196,8 +193,7 @@ impl Crawler {
                 take: "1".to_string(),
             }))
         }
-
-        update_job(&mut job).await?;
+        job.pre_process()?;
 
         let step_handles = self.step_handles.read().await;
         let step_handle = step_handles
@@ -238,9 +234,9 @@ impl Crawler {
             }
 
             let window_clone = window.clone();
-            let task = to_task(job.clone(), cur_env, self.client.clone(), g_header.clone()).await?;
+            let task = job.make_task(cur_env, self.client.clone(), g_header.clone()).await?;
             let handle = tokio::task::spawn(async move {
-                if let Err(e) = run_task(task.clone()).await {
+                if let Err(e) = task.clone().run_task().await {
                     eprintln!("Error: {:?}", e);
                     let notify = StepNotify {
                         name: "error".to_string(),
@@ -264,6 +260,13 @@ impl Crawler {
                             name: "progress".to_string(),
                             status: "".to_string(),
                             message: html_task.save_path.clone()
+                        }
+                    }
+                    Task::CsvTask(csv_task) => {
+                        StepNotify {
+                            name: "progress".to_string(),
+                            status: "".to_string(),
+                            message: csv_task.save_path.clone()
                         }
                     }
                     Task::ShellTask(shell_task) => {
@@ -301,33 +304,6 @@ impl Crawler {
 
 }
 
-async fn update_job(job: &mut Job) -> Result<()>{
-    match job {
-        Job::HttpJob(_http_job) => {}
-        Job::HtmlJob(html_job) => {
-            let Ok(html_template) = std::fs::read_to_string(&html_job.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
-            html_job.output_template = Some(html_template);
-        }
-        Job::ShellJob(_shell_job) => {}
-    }
-    Ok(())
-}
-
-async fn to_task(job: Job, cur_env: HashMap<String, String>, client: Client, g_header: HashMap<String, String>) -> Result<Task> {
-    match job {
-        Job::HttpJob(http_job) => {to_http_task(http_job, cur_env, client, g_header).await},
-        Job::HtmlJob(html_job) => {to_html_task(html_job, cur_env).await},
-        Job::ShellJob(shell_job) => {to_shell_task(shell_job, cur_env).await},
-    }
-}
-
-async fn run_task(task: Task) -> Result<()> {
-    match task {
-        Task::HttpTask(http_task) => {run_task_http(http_task).await}
-        Task::HtmlTask(html_task) => {run_task_html(html_task).await}
-        Task::ShellTask(shell_task) => {run_task_shell(shell_task).await}
-    }
-}
 
 
 fn get_iters(

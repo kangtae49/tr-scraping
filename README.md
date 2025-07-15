@@ -65,8 +65,8 @@ pnpm tauri build
     "Cookie": "{{{COOKIE}}}"
   },
   "steps": {
-    "step1": {
-      "name": "step1",
+    "menu": {
+      "name": "menu",
       "task_iters": [],
       "job": {"HttpJob": {
         "method": "GET",
@@ -75,7 +75,7 @@ pnpm tauri build
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
         "filename": "menu_{{CAFE_ID}}.json",
-        "output": "C:/sources/crawler_data/step1"
+        "output": "C:/sources/crawler_data/menu"
       }},
       "concurrency_limit": 10
     },
@@ -84,7 +84,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId"
@@ -108,7 +108,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -141,7 +141,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -154,7 +154,8 @@ pnpm tauri build
             "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
             "item_pattern": "$.result.articleList[*]",
             "env_pattern": {
-              "ARTICLE_ID": "$.item.articleId"
+              "ARTICLE_ID": "$.item.articleId",
+              "SUBJECT": "$.item.subject"
             }
           }
         }
@@ -165,8 +166,40 @@ pnpm tauri build
         "header": {
           "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
         },
-        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}.json",
+        "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.json",
         "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}"
+      }},
+      "concurrency_limit": 10
+    },
+    "article_tsv": {
+      "name": "article_tsv",
+      "task_iters": [
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "item_pattern": "$.result.menus[*]",
+            "env_pattern": {
+              "MENU_ID": "$.menuId",
+              "MENU_NAME": "$.name"
+            }
+          }
+        },
+        {
+          "GlobJsonPattern": {
+            "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
+            "item_pattern": "$.result.articleList[*]",
+            "env_pattern": {
+              "ARTICLE_ID": "$.item.articleId",
+              "SUBJECT": "$.item.subject"
+            }
+          }
+        }
+      ],
+      "job": {"CsvJob": {
+        "keys": ["MENU_ID", "ARTICLE_ID", "SUBJECT"],
+        "sep": "\t",
+        "filename": "{{MENU_ID}}.tsv",
+        "output": "C:/sources/crawler_data/articles"
       }},
       "concurrency_limit": 10
     },
@@ -175,7 +208,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -194,7 +227,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}.json",
+            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}_*.json",
             "item_pattern": "$.result.attaches[*]",
             "env_pattern": {
               "URL": "$.url",
@@ -207,10 +240,22 @@ pnpm tauri build
         "method": "GET",
         "url": "{{{URL}}}",
         "header": {
-          "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
+          "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true",
+          "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "priority": "u=0, i",
+          "sec-ch-ua": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Google Chrome\";v=\"138\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "iframe",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "cross-site",
+          "sec-fetch-storage-access": "active",
+          "sec-fetch-user": "?1",
+          "upgrade-insecure-requests": "1",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
         },
         "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{FILE_NAME}}",
-        "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}"
+        "output": "C:/sources/crawler_data/attachment/{{MENU_ID}}_{{MENU_NAME}}"
       }},
       "concurrency_limit": 10
     },
@@ -219,7 +264,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step1/*.json",
+            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -251,7 +296,8 @@ pnpm tauri build
             ["CONTENT", "$.content"]
           ],
           "ATTACHES": [
-            ["NAME", "$.name"]
+            ["_NAME", "$.name"],
+            ["ATTACH", "{{MENU_ID}}_{{ARTICLE_ID}}_{{_NAME}}"]
           ]
         },
         "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.html",
@@ -259,9 +305,21 @@ pnpm tauri build
         "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}"
       }},
       "concurrency_limit": 10
+    },
+    "cmd": {
+      "name": "cmd",
+      "job": {"ShellJob": {
+        "shell": "powershell",
+        "args": ["-Command", "ls"],
+        "encoding": "windows-949",
+        "working_dir": "."
+      }},
+      "task_iters": [],
+      "concurrency_limit": 1
     }
   }
 }
+
 
 
 

@@ -293,6 +293,18 @@
             "ShellJob"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "CsvJob": {
+              "$ref": "#/$defs/CsvJob"
+            }
+          },
+          "required": [
+            "CsvJob"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -395,6 +407,32 @@
         "args",
         "working_dir",
         "encoding"
+      ]
+    },
+    "CsvJob": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sep": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "keys",
+        "sep",
+        "filename",
+        "output"
       ]
     }
   }

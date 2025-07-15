@@ -6,6 +6,7 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome'
 import { faCirclePlay, faFolder, faArrowRotateRight } from '@fortawesome/free-solid-svg-icons'
 import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingPathStore } from "@store/settingPathStore.ts";
+import { useSettingTextStore } from "@store/settingTextStore.ts";
 import SettingView from "@components/SettingView.tsx";
 import { listen } from "@tauri-apps/api/event";
 import {DndContext, DragStartEvent, DragEndEvent, useDroppable} from '@dnd-kit/core';
@@ -19,8 +20,11 @@ export type StepNotify = { name: string; status: string; message: string }
 
 function MainPane(): React.JSX.Element {
   let [setting, setSetting] = useState<Setting | undefined>(undefined);
+
   const settingPath = useSettingPathStore((state) => state.settingPath);
   const setSettingPath = useSettingPathStore((state) => state.setSettingPath);
+  const settingText = useSettingTextStore((state) => state.settingText);
+  const setSettingText = useSettingTextStore((state) => state.setSettingText);
   const [stepProgressNotify, setStepProgressNotify] = useState<StepNotify | undefined>(undefined);
   const [stepStatusNotify, setStepStatusNotify] = useState<StepNotify | undefined>(undefined);
   const [stepErrorNotify, setStepErrorNotify] = useState<StepNotify | undefined>(undefined);
@@ -28,21 +32,16 @@ function MainPane(): React.JSX.Element {
   const [dropSteps, setDropSteps] = useState<string[]>([]);
 
   const loadJson = async (): Promise<void> => {
-    if (settingPath) {
-      api.readTxt(settingPath).then((textContent) => {
-        if (textContent.text) {
-          // console.log(textContent.text);
-          let setting = JSON.parse(textContent.text);
-          api.loadCrawler(setting)
-            .then(() => {
-              setSetting(setting);
-              console.info('loadCrawler');
-            })
-            .catch((reason) => {
-              console.error(reason);
-            })
-        }
-      });
+    if (settingPath && settingText) {
+      let setting = JSON.parse(settingText) as Setting;
+      api.loadCrawler(setting)
+        .then(() => {
+          setSetting(setting);
+          console.info('loadCrawler');
+        })
+        .catch((reason) => {
+          console.error(reason);
+        })
     }
   }
 
@@ -62,6 +61,11 @@ function MainPane(): React.JSX.Element {
     }).then(path => {
       if (path) {
         setSettingPath(path);
+        api.readTxt(path).then((textContent) => {
+          if (textContent.text) {
+            setSettingText(textContent.text);
+          }
+        })
       }
     });
   }
@@ -76,6 +80,11 @@ function MainPane(): React.JSX.Element {
     api.getArgPath().then((path) => {
       if(path) {
         setSettingPath(path);
+        api.readTxt(path).then((textContent) => {
+          if (textContent.text) {
+            setSettingText(textContent.text);
+          }
+        })
       }
     })
   }, []);

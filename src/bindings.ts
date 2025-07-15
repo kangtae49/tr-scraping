@@ -69,6 +69,7 @@ async updateState(stepName: string, val: number) : Promise<Result<null, ApiError
 /** user-defined types **/
 
 export type ApiError = { CrawlerError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string } | { GlobError: string }
+export type CsvJob = { keys: string[]; sep: string; filename: string; output: string }
 export type HtmlJob = { json_map: Partial<{ [key in string]: ([string, string])[] }>; output_template_file: string; output_template: string | null; filename: string; output: string }
 export type HttpJob = { url: string; method: string; header: Partial<{ [key in string]: string }>; filename: string; output: string }
 export type IterGlobJsonPattern = { glob_pattern: string; item_pattern: string; env_pattern: Partial<{ [key in string]: string }> }
@@ -77,7 +78,7 @@ export type IterList = { name: string; val: string[] }
 export type IterPattern = { name: string; glob_pattern: string; content_pattern: string }
 export type IterRange = { name: string; offset: string; take: string }
 export type IterRangePattern = { name: string; glob_pattern: string; offset: string; take: string }
-export type Job = { HttpJob: HttpJob } | { HtmlJob: HtmlJob } | { ShellJob: ShellJob }
+export type Job = { HttpJob: HttpJob } | { HtmlJob: HtmlJob } | { ShellJob: ShellJob } | { CsvJob: CsvJob }
 export type Setting = { env: Partial<{ [key in string]: string }>; header: Partial<{ [key in string]: string }>; steps: Partial<{ [key in string]: Step }> }
 export type ShellJob = { shell: string; args: string[]; working_dir: string; encoding: string }
 export type Step = { name: string; task_iters: TaskIter[]; job: Job; concurrency_limit: number }
