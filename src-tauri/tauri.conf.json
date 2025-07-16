@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tr-crawler",
+  "productName": "tr-scraping",
   "version": "0.0.1",
-  "identifier": "com.tr-crawler.app",
+  "identifier": "com.tr-scraping.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "tr-crawler",
+        "title": "tr-scraping",
         "width": 800,
         "height": 600,
         "transparent": true,

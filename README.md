@@ -8,15 +8,15 @@ This template should help get you started developing with Tauri, React and Types
 
 ```sh
 ❯ pnpm create tauri-app
-✔ Project name · tr-crawler
-✔ Identifier · com.tr-crawler.app
+✔ Project name · tr-scraping
+✔ Identifier · com.tr-scraping.app
 ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, deno, bun)
 ✔ Choose your package manager · pnpm
 ✔ Choose your UI template · React - (https://react.dev/)
 ✔ Choose your UI flavor · TypeScript
 
 Template created! To get started run:
-  cd tr-crawler
+  cd tr-scraping
   pnpm install
   pnpm tauri android init
 
@@ -28,7 +28,7 @@ For Android development, run:
 ```
 
 ```sh
-pnpm tauri dev -- -- "C:\sources\crawler_data\crawler.json"
+pnpm tauri dev -- -- "C:\sources\scraping_data\scraping.json"
 ```
 
 ```sh
@@ -41,7 +41,7 @@ pnpm add monaco-editor
 pnpm tauri build
 ```
 
-## crawler.json
+## scraping.json
 
 ```json
 {
@@ -75,7 +75,7 @@ pnpm tauri build
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
         "filename": "menu_{{CAFE_ID}}.json",
-        "output": "C:/sources/crawler_data/menu"
+        "output": "C:/sources/scraping_data/menu"
       }},
       "concurrency_limit": 10
     },
@@ -84,7 +84,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId"
@@ -99,7 +99,7 @@ pnpm tauri build
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
         "filename": "page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
-        "output": "C:/sources/crawler_data/step2"
+        "output": "C:/sources/scraping_data/step2"
       }},
       "concurrency_limit": 10
     },
@@ -108,7 +108,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -119,7 +119,7 @@ pnpm tauri build
         {
           "GlobJsonRangePattern": {
             "name": "PAGE_NO",
-            "file_pattern": "C:/sources/crawler_data/step2/page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
+            "file_pattern": "C:/sources/scraping_data/step2/page_size_{{CAFE_ID}}_{{MENU_ID}}.json",
             "offset_pattern": "1",
             "take_pattern": "$.result.pageInfo.lastNavigationPageNumber"
           }
@@ -132,7 +132,7 @@ pnpm tauri build
           "Referer": "https://cafe.naver.com/f-e/cafes/{{CAFE_ID}}/menus/1?viewType=L"
         },
         "filename": "page_{{CAFE_ID}}_{{MENU_ID}}_{{PAGE_NO}}.json",
-        "output": "C:/sources/crawler_data/step3"
+        "output": "C:/sources/scraping_data/step3"
       }},
       "concurrency_limit": 10
     },
@@ -141,7 +141,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -151,7 +151,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
+            "glob_pattern": "C:/sources/scraping_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
             "item_pattern": "$.result.articleList[*]",
             "env_pattern": {
               "ARTICLE_ID": "$.item.articleId",
@@ -167,7 +167,7 @@ pnpm tauri build
           "Referer": "https://cafe.naver.com/ca-fe/cafes/{{CAFE_ID}}/articles/{{ARTICLE_ID}}?menuid={{MENU_ID}}&referrerAllArticles=false&fromNext=true"
         },
         "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.json",
-        "output": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}"
+        "output": "C:/sources/scraping_data/article/{{MENU_ID}}_{{MENU_NAME}}"
       }},
       "concurrency_limit": 10
     },
@@ -176,7 +176,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -186,7 +186,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
+            "glob_pattern": "C:/sources/scraping_data/step3/page_{{CAFE_ID}}_{{MENU_ID}}_*.json",
             "item_pattern": "$.result.articleList[*]",
             "env_pattern": {
               "ARTICLE_ID": "$.item.articleId",
@@ -199,7 +199,7 @@ pnpm tauri build
         "keys": ["MENU_ID", "ARTICLE_ID", "SUBJECT"],
         "sep": "\t",
         "filename": "{{MENU_ID}}.tsv",
-        "output": "C:/sources/crawler_data/articles"
+        "output": "C:/sources/scraping_data/articles"
       }},
       "concurrency_limit": 10
     },
@@ -208,7 +208,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -218,7 +218,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_*.json",
+            "glob_pattern": "C:/sources/scraping_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_*.json",
             "item_pattern": "$.result",
             "env_pattern": {
               "ARTICLE_ID": "$.articleId"
@@ -227,7 +227,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}_*.json",
+            "glob_pattern": "C:/sources/scraping_data/article/{{MENU_ID}}_{{MENU_NAME}}/{{MENU_ID}}_{{ARTICLE_ID}}_*.json",
             "item_pattern": "$.result.attaches[*]",
             "env_pattern": {
               "URL": "$.url",
@@ -255,7 +255,7 @@ pnpm tauri build
           "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
         },
         "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{FILE_NAME}}",
-        "output": "C:/sources/crawler_data/attachment/{{MENU_ID}}_{{MENU_NAME}}"
+        "output": "C:/sources/scraping_data/attachment/{{MENU_ID}}_{{MENU_NAME}}"
       }},
       "concurrency_limit": 10
     },
@@ -264,7 +264,7 @@ pnpm tauri build
       "task_iters": [
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/menu/*.json",
+            "glob_pattern": "C:/sources/scraping_data/menu/*.json",
             "item_pattern": "$.result.menus[*]",
             "env_pattern": {
               "MENU_ID": "$.menuId",
@@ -274,7 +274,7 @@ pnpm tauri build
         },
         {
           "GlobJsonPattern": {
-            "glob_pattern": "C:/sources/crawler_data/article/{{MENU_ID}}_*/*.json",
+            "glob_pattern": "C:/sources/scraping_data/article/{{MENU_ID}}_*/*.json",
             "item_pattern": "$.result",
             "env_pattern": {
               "ARTICLE_ID": "$.articleId",
@@ -301,8 +301,8 @@ pnpm tauri build
           ]
         },
         "filename": "{{MENU_ID}}_{{ARTICLE_ID}}_{{SUBJECT}}.html",
-        "output_template_file": "C:/sources/tr-crawler/sample/output_template.html",
-        "output": "C:/sources/crawler_data/html/{{MENU_ID}}_{{MENU_NAME}}"
+        "output_template_file": "C:/sources/tr-scraping/sample/output_template.html",
+        "output": "C:/sources/scraping_data/html/{{MENU_ID}}_{{MENU_NAME}}"
       }},
       "concurrency_limit": 10
     },

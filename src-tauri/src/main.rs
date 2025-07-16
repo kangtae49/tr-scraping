@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tr_crawler_lib::run()
+    tr_scraping_lib::run()
 }

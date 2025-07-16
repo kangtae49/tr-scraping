@@ -122,8 +122,8 @@ pub struct StepNotify {
 
 #[derive(Type, Serialize, Deserialize, Error, Debug)]
 pub enum ApiError {
-    #[error("Crawler error: {0}")]
-    CrawlerError(String),
+    #[error("Scraping error: {0}")]
+    ScrapingError(String),
 
     #[error("handlebars error: {0}")]
     TemplateError(String),

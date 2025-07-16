@@ -30,7 +30,7 @@ use crate::iters::range_pattern_iter::get_iter_range_pattern;
 use crate::iters::glob_json_range_pattern_iter::get_iter_glob_json_range_pattern;
 use crate::iters::glob_json_pattern_iter::get_iter_glob_json_pattern;
 
-pub struct Crawler {
+pub struct Scraping {
     pub client: Client,
     pub env: Shared<HashMap<String, String>>,
     pub header: Shared<HashMap<String, String>>,
@@ -38,9 +38,9 @@ pub struct Crawler {
     pub step_handles: Shared<HashMap<String, StepHandle>>,
 }
 
-impl Crawler {
+impl Scraping {
     pub fn new() -> Self {
-        Crawler {
+        Scraping {
             client: Client::new(),
             env: Arc::new(RwLock::new(HashMap::new())),
             header: Arc::new(RwLock::new(HashMap::new())),
@@ -156,7 +156,7 @@ impl Crawler {
         let step_handles = self.step_handles.read().await;
         let step_handle = step_handles
             .get(&step_name)
-            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+            .ok_or(ApiError::ScrapingError("Step not found".to_string()))?;
         let state = step_handle.state.clone();
         state.store(val, Ordering::SeqCst);
         let control = step_handle.control.clone();
@@ -178,7 +178,7 @@ impl Crawler {
         let steps = self.steps.read().await;
         let step = steps
             .get(&step_name)
-            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+            .ok_or(ApiError::ScrapingError("Step not found".to_string()))?;
         let mut job = step.job.clone();
         let env_lock = self.env.read().await;
         let env = env_lock.clone();
@@ -198,7 +198,7 @@ impl Crawler {
         let step_handles = self.step_handles.read().await;
         let step_handle = step_handles
             .get(&step_name)
-            .ok_or(ApiError::CrawlerError("Step not found".to_string()))?;
+            .ok_or(ApiError::ScrapingError("Step not found".to_string()))?;
         let semaphore = step_handle.semaphore.clone();
 
         let state = step_handle.state.clone();
@@ -211,7 +211,7 @@ impl Crawler {
         while let Some((vals, cur_env)) = stream.next().await {
             println!("iter: {:?}", vals);
             let semaphore = semaphore.clone();
-            let Ok(permit) = semaphore.acquire_owned().await else { return Err(ApiError::CrawlerError("err semaphore.acquire_owned".to_string())); };
+            let Ok(permit) = semaphore.acquire_owned().await else { return Err(ApiError::ScrapingError("err semaphore.acquire_owned".to_string())); };
 
             match state.load(Ordering::SeqCst) {
                 STEP_RUNNING => {

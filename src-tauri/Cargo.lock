@@ -4819,7 +4819,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
-name = "tr-crawler"
+name = "tr-scraping"
 version = "0.0.1"
 dependencies = [
  "async-stream",

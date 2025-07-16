@@ -8,8 +8,8 @@ export const getArgPath = async (): Promise<string | undefined> => {
 export const readTxt = async (pathStr: string): Promise<TextContent> => {
   return await invoke("read_txt", {pathStr})
 }
-export const loadCrawler = async (setting: Setting): Promise<void> => {
-  return await invoke("load_crawler", {setting})
+export const loadSetting = async (setting: Setting): Promise<void> => {
+  return await invoke("load_setting", {setting})
 }
 
 export const runStep = async (stepName: string): Promise<void> => {

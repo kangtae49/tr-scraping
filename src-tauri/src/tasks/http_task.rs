@@ -108,7 +108,7 @@ impl HttpTask {
 
         if !res.status().is_success() {
             println!("run_task err: {:?} {:?}", res.status(), &self);
-            return Err(ApiError::CrawlerError(format!("status: {:?} {:?}", res.status(), &self.url)));
+            return Err(ApiError::ScrapingError(format!("status: {:?} {:?}", res.status(), &self.url)));
         }
 
         let mut charset: Option<String> = None;

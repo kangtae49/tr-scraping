@@ -24,9 +24,9 @@ async readTxt(pathStr: string) : Promise<Result<TextContent, ApiError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async loadCrawler(setting: Setting) : Promise<Result<null, ApiError>> {
+async loadSetting(setting: Setting) : Promise<Result<null, ApiError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_crawler", { setting }) };
+    return { status: "ok", data: await TAURI_INVOKE("load_setting", { setting }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -68,7 +68,7 @@ async updateState(stepName: string, val: number) : Promise<Result<null, ApiError
 
 /** user-defined types **/
 
-export type ApiError = { CrawlerError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string } | { GlobError: string }
+export type ApiError = { ScrapingError: string } | { TemplateError: string } | { ReqwestError: string } | { Io: string } | { ParseError: string } | { JsonError: string } | { GlobError: string }
 export type CsvJob = { keys: string[]; sep: string; filename: string; output: string }
 export type HtmlJob = { json_map: Partial<{ [key in string]: ([string, string])[] }>; output_template_file: string; output_template: string | null; filename: string; output: string }
 export type HttpJob = { url: string; method: string; header: Partial<{ [key in string]: string }>; filename: string; output: string }

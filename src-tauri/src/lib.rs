@@ -1,4 +1,4 @@
-mod crawler;
+mod scraping;
 mod models;
 mod tasks;
 mod utils;
@@ -7,7 +7,7 @@ mod iters;
 use std::sync::{Arc};
 use tauri::State;
 use tauri_specta::{collect_commands, Builder};
-use crate::crawler::Crawler;
+use crate::scraping::Scraping;
 use crate::utils::save_file;
 use crate::models::{ApiError, Setting, TextContent};
 use tokio::sync::RwLock;
@@ -23,33 +23,33 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 #[specta::specta]
-async fn get_arg_path(state: State<'_, Arc<RwLock<Crawler>>>) -> Result<Option<String>> {
-    let crawler = state.read().await;
-    Ok(crawler.get_arg_path())
+async fn get_arg_path(state: State<'_, Arc<RwLock<Scraping>>>) -> Result<Option<String>> {
+    let scraping = state.read().await;
+    Ok(scraping.get_arg_path())
 }
 
 #[tauri::command]
 #[specta::specta]
-async fn load_crawler(state: State<'_, Arc<RwLock<Crawler>>>, setting: Setting) -> Result<()> {
-    let mut crawler = state.write().await;
-    let _ = crawler.load(setting).await;
+async fn load_setting(state: State<'_, Arc<RwLock<Scraping>>>, setting: Setting) -> Result<()> {
+    let mut scraping = state.write().await;
+    let _ = scraping.load(setting).await;
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-async fn read_txt(state: State<'_, Arc<RwLock<Crawler>>>, path_str: &str) -> Result<TextContent> {
-    let crawler = state.read().await;
-    let text_content = crawler.read_txt(path_str).await?;
+async fn read_txt(state: State<'_, Arc<RwLock<Scraping>>>, path_str: &str) -> Result<TextContent> {
+    let scraping = state.read().await;
+    let text_content = scraping.read_txt(path_str).await?;
     Ok(text_content)
 }
 
 #[tauri::command]
 #[specta::specta]
-async fn run_step(state: State<'_, Arc<RwLock<Crawler>>>, window: tauri::Window, step_name: &str) -> Result<()> {
+async fn run_step(state: State<'_, Arc<RwLock<Scraping>>>, window: tauri::Window, step_name: &str) -> Result<()> {
     println!("run_step: {}", step_name);
-    let crawler = state.read().await;
-    crawler.run_step(String::from(step_name), window).await?;
+    let scraping = state.read().await;
+    scraping.run_step(String::from(step_name), window).await?;
     Ok(())
 }
 
@@ -61,9 +61,9 @@ async fn save_setting(file_path: String, txt: String) -> Result<()> {
 
 #[tauri::command]
 #[specta::specta]
-async fn update_state(state: State<'_, Arc<RwLock<Crawler>>>, step_name: &str, val: u8) -> Result<()> {
-    let crawler = state.read().await;
-    crawler.update_state(step_name.to_string(), val).await?;
+async fn update_state(state: State<'_, Arc<RwLock<Scraping>>>, step_name: &str, val: u8) -> Result<()> {
+    let scraping = state.read().await;
+    scraping.update_state(step_name.to_string(), val).await?;
     Ok(())
 }
 
@@ -74,7 +74,7 @@ pub fn run() {
         greet,
         get_arg_path,
         read_txt,
-        load_crawler,
+        load_setting,
         run_step,
         save_setting,
         update_state,
@@ -107,7 +107,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(Arc::new(RwLock::new(Crawler::new())))
+        .manage(Arc::new(RwLock::new(Scraping::new())))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {

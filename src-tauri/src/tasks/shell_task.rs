@@ -63,13 +63,13 @@ impl ShellTask {
             .args(self.args.clone())
             .current_dir(self.working_dir.clone())
             .output()
-            .map_err(|e| ApiError::CrawlerError(format!("{:?}", e)))?;
+            .map_err(|e| ApiError::ScrapingError(format!("{:?}", e)))?;
         // let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let encoding = encoding_from_whatwg_label(&self.encoding)
             .unwrap_or(encoding::all::UTF_8);
         let stdout = encoding
             .decode(&output.stdout, DecoderTrap::Replace)
-            .map_err(|e| ApiError::CrawlerError(format!("{:?}", e)))?;
+            .map_err(|e| ApiError::ScrapingError(format!("{:?}", e)))?;
         println!("{}", stdout);
         Ok(())
     }

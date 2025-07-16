@@ -34,10 +34,10 @@ function MainPane(): React.JSX.Element {
   const loadJson = async (): Promise<void> => {
     if (settingPath && settingText) {
       let setting = JSON.parse(settingText) as Setting;
-      api.loadCrawler(setting)
+      api.loadSetting(setting)
         .then(() => {
           setSetting(setting);
-          console.info('loadCrawler');
+          console.info('loadSetting');
         })
         .catch((reason) => {
           console.error(reason);
@@ -161,7 +161,7 @@ function MainPane(): React.JSX.Element {
     <div className="main-pane">
       <div className="top">
         <div className="title">
-          <h2>Crawler</h2>
+          <h2>Scraping</h2>
         </div>
         <div className="control">
           {setting && (

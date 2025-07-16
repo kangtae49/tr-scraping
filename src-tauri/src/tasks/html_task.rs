@@ -23,13 +23,13 @@ pub struct HtmlJob {
 
 impl HtmlJob {
     pub fn pre_process(&mut self) -> Result<()> {
-        let Ok(html_template) = std::fs::read_to_string(&self.output_template_file) else { return Err(ApiError::CrawlerError("err html_template".to_string())); };
+        let Ok(html_template) = std::fs::read_to_string(&self.output_template_file) else { return Err(ApiError::ScrapingError("err html_template".to_string())); };
         self.output_template = Some(html_template);
         Ok(())
     }
 
     pub async fn make_task(&self, cur_env: HashMap<String, String>) -> Result<Task> {
-        let Some(output_template) = self.output_template.clone() else { return Err(ApiError::CrawlerError("no output template".to_string())); };
+        let Some(output_template) = self.output_template.clone() else { return Err(ApiError::ScrapingError("no output template".to_string())); };
 
         let folder = get_handlebars_safe_dir(&self.output, &cur_env)?;
         let filename = sanitize(get_handlebars(&self.filename, &cur_env)?);
